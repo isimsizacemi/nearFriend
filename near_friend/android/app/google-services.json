@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "120460073082",
+    "firebase_url": "https://nearfriend-d742f-default-rtdb.firebaseio.com",
+    "project_id": "nearfriend-d742f",
+    "storage_bucket": "nearfriend-d742f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:120460073082:android:946b4fbaca78a988a7c3c3",
+        "android_client_info": {
+          "package_name": "com.isimsizacemi.near_friend"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "120460073082-bb3v52ftvf5jj6rritg2218jq5epa91h.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.isimsizacemi.near_friend",
+            "certificate_hash": "39229d73a259e5777e9a705239a6f819acaabf13"
+          }
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCXn2JaJu_WVGBqNIccYYSo8RVpJ6P9cOs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
