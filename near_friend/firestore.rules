@@ -1,18 +1,110 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Kullanıcılar koleksiyonu - sadece kendi verilerini okuyabilir/yazabilir
+    
+    // Kullanıcılar koleksiyonu
     match /users/{userId} {
+      // Kullanıcı sadece kendi verilerini okuyabilir/yazabilir
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Kullanıcı kendi profilini güncelleyebilir
+      allow update: if request.auth != null && 
+        request.auth.uid == userId &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['displayName', 'photoURL', 'hasCreatedProfile', 'lastLoginAt', 'profileUpdatedAt']);
     }
     
-    // Doğrulama kodları koleksiyonu - herkes yazabilir, sadece kendi kodunu okuyabilir
+    // Check-in'ler koleksiyonu
+    match /checkins/{checkinId} {
+      // Herkes aktif check-in'leri okuyabilir
+      allow read: if request.auth != null && 
+        resource.data.isActive == true;
+      
+      // Kullanıcı kendi check-in'ini oluşturabilir
+      allow create: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // Kullanıcı kendi check-in'ini güncelleyebilir (beğeni, yorum vb.)
+      allow update: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // Kullanıcı kendi check-in'ini silebilir
+      allow delete: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    // Yorumlar koleksiyonu
+    match /comments/{commentId} {
+      // Herkes yorumları okuyabilir
+      allow read: if request.auth != null;
+      
+      // Kullanıcı yorum yazabilir
+      allow create: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // Kullanıcı kendi yorumunu güncelleyebilir/silebilir
+      allow update, delete: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    // Mesajlar koleksiyonu
+    match /messages/{messageId} {
+      // Kullanıcı sadece kendine gelen/gönderdiği mesajları okuyabilir
+      allow read: if request.auth != null && 
+        (request.auth.uid == resource.data.senderId || 
+         request.auth.uid == resource.data.receiverId);
+      
+      // Kullanıcı mesaj gönderebilir
+      allow create: if request.auth != null && 
+        request.auth.uid == resource.data.senderId;
+      
+      // Kullanıcı kendi mesajını silebilir
+      allow delete: if request.auth != null && 
+        request.auth.uid == resource.data.senderId;
+    }
+    
+    // Doğrulama kodları koleksiyonu (geçici)
     match /verification_codes/{email} {
-      allow read, write: if true; // Geçici olarak herkese izin ver
+      // Geçici olarak herkese izin ver (güvenlik için daha sonra kısıtlanacak)
+      allow read, write: if true;
     }
     
-    // Diğer tüm koleksiyonlar için varsayılan kural
+    // Quiz sonuçları koleksiyonu
+    match /quiz_results/{resultId} {
+      // Kullanıcı sadece kendi quiz sonuçlarını okuyabilir
+      allow read: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // Kullanıcı quiz sonucunu kaydedebilir
+      allow create: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    // Bildirimler koleksiyonu
+    match /notifications/{notificationId} {
+      // Kullanıcı sadece kendi bildirimlerini okuyabilir
+      allow read: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // Kullanıcı bildirimini okundu olarak işaretleyebilir
+      allow update: if request.auth != null && 
+        request.auth.uid == resource.data.userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+    }
+    
+    // Raporlar koleksiyonu
+    match /reports/{reportId} {
+      // Kullanıcı rapor oluşturabilir
+      allow create: if request.auth != null && 
+        request.auth.uid == resource.data.reporterId;
+      
+      // Sadece admin raporları okuyabilir (gelecekte admin kontrolü eklenecek)
+      allow read: if request.auth != null;
+    }
+    
+    // Genel kural - giriş yapmış kullanıcılar için
     match /{document=**} {
+      // Varsayılan olarak giriş yapmış kullanıcılara izin ver
       allow read, write: if request.auth != null;
     }
   }

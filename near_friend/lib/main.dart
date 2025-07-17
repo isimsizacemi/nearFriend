@@ -94,8 +94,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
           }
         } catch (e) {
           print('Kullanıcı durumu kontrol hatası: $e');
+          // Hata durumunda ana ekrana yönlendir
           setState(() {
-            _nextScreen = 'quiz';
+            _nextScreen = 'main';
             _isLoading = false;
           });
         }

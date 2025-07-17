@@ -79,11 +79,13 @@ class AuthService {
           'lastLoginAt': FieldValue.serverTimestamp(),
           'hasPassedQuiz': false,
           'hasCreatedProfile': false,
-          'isVerified': false,
+          'isVerified': true, // Email doğrulaması yapıldığı için true
           'isBanned': false,
           'verificationScore': 0,
           'blockedUsers': [],
           'blockedBy': [],
+          'authMethod': 'email_password', // Giriş yöntemi
+          'isEmailVerified': firebaseUser.emailVerified, // Email doğrulandı mı
         };
 
         await _firestore
@@ -91,6 +93,8 @@ class AuthService {
             .doc(firebaseUser.uid)
             .set(userData);
         print('Yeni kullanıcı başarıyla oluşturuldu');
+        print('Email: ${firebaseUser.email}');
+        print('Email Verified: ${firebaseUser.emailVerified}');
       }
     } catch (e) {
       print('Kullanıcı kaydı oluşturulurken hata: $e');

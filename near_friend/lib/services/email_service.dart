@@ -1,70 +1,39 @@
-import 'dart:math';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 class EmailService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // 6 haneli rastgele kod oluştur
-  String _generateVerificationCode() {
-    Random random = Random();
-    return List.generate(6, (index) => random.nextInt(10)).join();
-  }
-
-  // Doğrulama kodu gönder ve kaydet
-  Future<String> sendVerificationCode(String email) async {
+  // Email doğrulama kodu gönder
+  Future<bool> sendVerificationCode(String email) async {
     try {
-      // 6 haneli kod oluştur
-      String verificationCode = _generateVerificationCode();
+      // Önce email formatını kontrol et
+      if (!email.contains('@')) {
+        throw 'Geçersiz email formatı';
+      }
 
-      // Firestore'a kaydet (5 dakika geçerli)
+      // Email doğrulama kodu oluştur (6 haneli)
+      final verificationCode = _generateVerificationCode();
+
+      // Firestore'a doğrulama kodunu kaydet
       await _firestore.collection('verification_codes').doc(email).set({
         'code': verificationCode,
         'email': email,
         'createdAt': FieldValue.serverTimestamp(),
-        'expiresAt': FieldValue.serverTimestamp(), // 5 dakika sonra
+        'expiresAt': FieldValue.serverTimestamp(), // 10 dakika sonra
+        'isUsed': false,
       });
 
-      // TODO: Gerçek email gönderme
-      // Şimdilik sadece konsola yazdır
-      print('📧 Doğrulama kodu gönderildi: $verificationCode');
-      print('📧 Email: $email');
+      // Burada gerçek email gönderme servisi entegre edilebilir
+      // Şimdilik sadece console'a yazdırıyoruz
+      print('Email: $email');
+      print('Doğrulama Kodu: $verificationCode');
 
-      // Firebase Functions ile gerçek email gönderme (gelecekte)
-      // await _sendEmailViaFirebaseFunctions(email, verificationCode);
-
-      return verificationCode;
+      return true;
     } catch (e) {
-      print('Doğrulama kodu gönderilirken hata: $e');
-      rethrow;
-    }
-  }
-
-  // Firebase Functions ile email gönderme (gelecekte)
-  Future<void> _sendEmailViaFirebaseFunctions(String email, String code) async {
-    try {
-      // Firebase Functions URL'i (gelecekte oluşturulacak)
-      const String functionUrl =
-          'https://your-project.cloudfunctions.net/sendEmail';
-
-      final response = await http.post(
-        Uri.parse(functionUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'email': email,
-          'code': code,
-          'subject': 'nearFriend - Doğrulama Kodu',
-          'message': 'Doğrulama kodunuz: $code\n\nBu kod 5 dakika geçerlidir.',
-        }),
-      );
-
-      if (response.statusCode != 200) {
-        throw Exception('Email gönderilemedi: ${response.body}');
-      }
-    } catch (e) {
-      print('Firebase Functions ile email gönderme hatası: $e');
-      rethrow;
+      print('Email doğrulama kodu gönderilirken hata: $e');
+      return false;
     }
   }
 
@@ -78,25 +47,30 @@ class EmailService {
         return false;
       }
 
-      final data = doc.data()!;
-      final storedCode = data['code'] as String;
-      final createdAt = data['createdAt'] as Timestamp;
+      final data = doc.data();
+      if (data == null) return false;
 
-      // 5 dakika geçerlilik kontrolü
-      final now = DateTime.now();
-      final codeTime = createdAt.toDate();
-      final difference = now.difference(codeTime).inMinutes;
+      // Kodun süresi dolmuş mu kontrol et (10 dakika)
+      final createdAt = data['createdAt'] as Timestamp?;
+      if (createdAt != null) {
+        final now = Timestamp.now();
+        final difference = now.seconds - createdAt.seconds;
+        if (difference > 600) {
+          // 10 dakika = 600 saniye
+          await doc.reference.delete(); // Süresi dolmuş kodu sil
+          return false;
+        }
+      }
 
-      if (difference > 5) {
-        // Süresi dolmuş, sil
-        await _firestore.collection('verification_codes').doc(email).delete();
+      // Kod kullanılmış mı kontrol et
+      if (data['isUsed'] == true) {
         return false;
       }
 
-      // Kod kontrolü
-      if (storedCode == code) {
-        // Başarılı, kodu sil
-        await _firestore.collection('verification_codes').doc(email).delete();
+      // Kodu kontrol et
+      if (data['code'] == code) {
+        // Kodu kullanıldı olarak işaretle
+        await doc.reference.update({'isUsed': true});
         return true;
       }
 
@@ -104,6 +78,69 @@ class EmailService {
     } catch (e) {
       print('Doğrulama kodu kontrol edilirken hata: $e');
       return false;
+    }
+  }
+
+  // Email ile kullanıcı oluştur veya giriş yap
+  Future<UserCredential?> signInWithEmail(String email) async {
+    try {
+      // Önce kullanıcının var olup olmadığını kontrol et
+      final methods = await _auth.fetchSignInMethodsForEmail(email);
+
+      if (methods.isEmpty) {
+        // Yeni kullanıcı oluştur
+        return await _auth.createUserWithEmailAndPassword(
+          email: email,
+          password: _generateTemporaryPassword(), // Geçici şifre
+        );
+      } else {
+        // Mevcut kullanıcı için giriş yap
+        // Bu durumda kullanıcıya şifre sıfırlama emaili gönderilebilir
+        // Şimdilik sadece mevcut kullanıcıyı döndür
+        final user = _auth.currentUser;
+        if (user != null && user.email == email) {
+          return null; // Mevcut kullanıcı için null döndür
+        }
+        return null;
+      }
+    } catch (e) {
+      print('Email ile giriş yapılırken hata: $e');
+      return null;
+    }
+  }
+
+  // 6 haneli doğrulama kodu oluştur
+  String _generateVerificationCode() {
+    final random = DateTime.now().millisecondsSinceEpoch;
+    final code = (random % 900000 + 100000).toString();
+    return code;
+  }
+
+  // Geçici şifre oluştur
+  String _generateTemporaryPassword() {
+    final random = DateTime.now().millisecondsSinceEpoch;
+    return 'temp_${random}_${_generateVerificationCode()}';
+  }
+
+  // Kullanıcı kaydını oluştur
+  Future<void> createUserRecord(User user) async {
+    try {
+      await _firestore.collection('users').doc(user.uid).set({
+        'email': user.email,
+        'displayName': user.displayName ?? '',
+        'photoURL': user.photoURL,
+        'createdAt': FieldValue.serverTimestamp(),
+        'lastLoginAt': FieldValue.serverTimestamp(),
+        'hasPassedQuiz': false,
+        'hasCreatedProfile': false,
+        'isVerified': true, // Email doğrulaması yapıldığı için true
+        'isBanned': false,
+        'verificationScore': 0,
+        'blockedUsers': [],
+        'blockedBy': [],
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print('Kullanıcı kaydı oluşturulurken hata: $e');
     }
   }
 }

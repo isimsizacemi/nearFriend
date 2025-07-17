@@ -1,0 +1,35 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Kullanıcı profil fotoğrafları
+    match /profile_photos/{userId}/{allPaths=**} {
+      // Kullanıcı sadece kendi profil fotoğrafını yükleyebilir/okuyabilir
+      allow read, write: if request.auth != null && 
+        request.auth.uid == userId;
+    }
+    
+    // Check-in fotoğrafları
+    match /checkin_photos/{checkinId}/{allPaths=**} {
+      // Herkes check-in fotoğraflarını okuyabilir
+      allow read: if request.auth != null;
+      
+      // Kullanıcı sadece kendi check-in fotoğraflarını yükleyebilir
+      allow write: if request.auth != null && 
+        request.auth.uid == resource.metadata.userId;
+    }
+    
+    // Geçici dosyalar (yükleme sırasında)
+    match /temp/{userId}/{allPaths=**} {
+      // Kullanıcı sadece kendi geçici dosyalarını yükleyebilir
+      allow read, write: if request.auth != null && 
+        request.auth.uid == userId;
+    }
+    
+    // Genel kural - giriş yapmış kullanıcılar için
+    match /{allPaths=**} {
+      // Varsayılan olarak giriş yapmış kullanıcılara izin ver
+      allow read, write: if request.auth != null;
+    }
+  }
+} 
