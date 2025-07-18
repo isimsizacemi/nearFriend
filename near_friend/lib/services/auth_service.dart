@@ -77,8 +77,8 @@ class AuthService {
           'phoneNumber': firebaseUser.phoneNumber ?? '',
           'createdAt': FieldValue.serverTimestamp(),
           'lastLoginAt': FieldValue.serverTimestamp(),
-          'hasPassedQuiz': false,
-          'hasCreatedProfile': false,
+          'hasPassedQuiz': false, // Quiz yapması gerekiyor
+          'hasCreatedProfile': false, // Profil oluşturması gerekiyor
           'isVerified': true, // Email doğrulaması yapıldığı için true
           'isBanned': false,
           'verificationScore': 0,
@@ -86,6 +86,8 @@ class AuthService {
           'blockedBy': [],
           'authMethod': 'email_password', // Giriş yöntemi
           'isEmailVerified': firebaseUser.emailVerified, // Email doğrulandı mı
+          'isActive': true,
+          'isOnline': true,
         };
 
         await _firestore
@@ -99,7 +101,8 @@ class AuthService {
     } catch (e) {
       print('Kullanıcı kaydı oluşturulurken hata: $e');
       print('Hata detayı: ${e.toString()}');
-      rethrow; // Hatayı yukarı fırlat
+      // Hatayı yukarı fırlatma, sadece log'la
+      print('Kullanıcı kaydı oluşturulamadı, devam ediliyor...');
     }
   }
 
@@ -107,13 +110,20 @@ class AuthService {
   Future<void> updateUserProfile(
       String userId, Map<String, dynamic> data) async {
     try {
+      print('AuthService: Profil güncelleniyor...');
+      print('Kullanıcı UID: $userId');
+      print('Güncellenecek veri: $data');
+
       await _firestore.collection('users').doc(userId).update({
         ...data,
         'hasCreatedProfile': true,
         'profileUpdatedAt': FieldValue.serverTimestamp(),
       });
+
+      print('AuthService: Profil başarıyla güncellendi!');
     } catch (e) {
       print('Kullanıcı profili güncellenirken hata: $e');
+      throw e; // Hatayı yukarı fırlat
     }
   }
 

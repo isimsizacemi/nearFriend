@@ -61,6 +61,7 @@ dependencies:
   # HTTP ve API
   http: ^1.1.0
   dio: ^5.2.1
+  url_launcher: ^6.1.14
   
   # Yardımcı Paketler
   intl: ^0.18.1

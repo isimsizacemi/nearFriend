@@ -41,46 +41,46 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyC_YtwDOVxsGTodzCABACbH03IBaegdcjs',
-    appId: '1:120460073082:web:946b4fbaca78a988a7c3c3',
-    messagingSenderId: '120460073082',
-    projectId: 'nearfriend-d742f',
-    authDomain: 'nearfriend-d742f.firebaseapp.com',
-    storageBucket: 'nearfriend-d742f.firebasestorage.app',
+    apiKey: 'AIzaSyBkuRsUfgdZ5gq7uJ_IT7gUfZXBsZzLJuM',
+    appId: '1:238065650809:web:2288038c05de5ead5c18a8',
+    messagingSenderId: '238065650809',
+    projectId: 'neirfriends',
+    authDomain: 'neirfriends.firebaseapp.com',
+    storageBucket: 'neirfriends.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyC_YtwDOVxsGTodzCABACbH03IBaegdcjs',
-    appId: '1:120460073082:android:946b4fbaca78a988a7c3c3',
-    messagingSenderId: '120460073082',
-    projectId: 'nearfriend-d742f',
-    storageBucket: 'nearfriend-d742f.firebasestorage.app',
+    apiKey: 'AIzaSyBkuRsUfgdZ5gq7uJ_IT7gUfZXBsZzLJuM',
+    appId: '1:238065650809:android:2288038c05de5ead5c18a8',
+    messagingSenderId: '238065650809',
+    projectId: 'neirfriends',
+    storageBucket: 'neirfriends.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyC_YtwDOVxsGTodzCABACbH03IBaegdcjs',
-    appId: '1:120460073082:ios:946b4fbaca78a988a7c3c3',
-    messagingSenderId: '120460073082',
-    projectId: 'nearfriend-d742f',
-    storageBucket: 'nearfriend-d742f.firebasestorage.app',
-    iosBundleId: 'com.isimsizacemi.nearFriend',
+    apiKey: 'AIzaSyBkuRsUfgdZ5gq7uJ_IT7gUfZXBsZzLJuM',
+    appId: '1:238065650809:ios:2288038c05de5ead5c18a8',
+    messagingSenderId: '238065650809',
+    projectId: 'neirfriends',
+    storageBucket: 'neirfriends.firebasestorage.app',
+    iosBundleId: 'com.isimsizacemi.nearfriends',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyC_YtwDOVxsGTodzCABACbH03IBaegdcjs',
-    appId: '1:120460073082:ios:946b4fbaca78a988a7c3c3',
-    messagingSenderId: '120460073082',
-    projectId: 'nearfriend-d742f',
-    storageBucket: 'nearfriend-d742f.firebasestorage.app',
-    iosBundleId: 'com.isimsizacemi.nearFriend',
+    apiKey: 'AIzaSyBkuRsUfgdZ5gq7uJ_IT7gUfZXBsZzLJuM',
+    appId: '1:238065650809:ios:2288038c05de5ead5c18a8',
+    messagingSenderId: '238065650809',
+    projectId: 'neirfriends',
+    storageBucket: 'neirfriends.firebasestorage.app',
+    iosBundleId: 'com.isimsizacemi.nearfriends',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyC_YtwDOVxsGTodzCABACbH03IBaegdcjs',
-    appId: '1:120460073082:web:946b4fbaca78a988a7c3c3',
-    messagingSenderId: '120460073082',
-    projectId: 'nearfriend-d742f',
-    authDomain: 'nearfriend-d742f.firebaseapp.com',
-    storageBucket: 'nearfriend-d742f.firebasestorage.app',
+    apiKey: 'AIzaSyBkuRsUfgdZ5gq7uJ_IT7gUfZXBsZzLJuM',
+    appId: '1:238065650809:web:2288038c05de5ead5c18a8',
+    messagingSenderId: '238065650809',
+    projectId: 'neirfriends',
+    authDomain: 'neirfriends.firebaseapp.com',
+    storageBucket: 'neirfriends.firebasestorage.app',
   );
 }

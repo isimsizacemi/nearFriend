@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
+import '../models/checkin_model.dart';
+import '../utils/app_theme.dart';
+import 'profile_edit_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,404 +14,786 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _authService = AuthService();
 
-  // Form controllers
-  final _displayNameController = TextEditingController();
-  final _bioController = TextEditingController();
-
-  // Form values
-  String _selectedUniversity = '';
-  String _selectedDepartment = '';
-  int _selectedAge = 18;
-  String _selectedGender = '';
-  final List<String> _selectedInterests = [];
-  File? _profileImage;
+  // Kullanıcı verileri
+  Map<String, dynamic>? _userData;
+  List<CheckinModel> _userPosts = [];
   bool _isLoading = false;
-
-  // Options
-  final List<String> _universities = [
-    'İstanbul Teknik Üniversitesi',
-    'Boğaziçi Üniversitesi',
-    'Orta Doğu Teknik Üniversitesi',
-    'Hacettepe Üniversitesi',
-    'Ankara Üniversitesi',
-    'İstanbul Üniversitesi',
-    'Marmara Üniversitesi',
-    'Yıldız Teknik Üniversitesi',
-    'Ege Üniversitesi',
-    'Dokuz Eylül Üniversitesi',
-    'Diğer',
-  ];
-
-  final List<String> _departments = [
-    'Bilgisayar Mühendisliği',
-    'Elektrik-Elektronik Mühendisliği',
-    'Makine Mühendisliği',
-    'Endüstri Mühendisliği',
-    'İnşaat Mühendisliği',
-    'Tıp',
-    'Hukuk',
-    'İşletme',
-    'Ekonomi',
-    'Psikoloji',
-    'Matematik',
-    'Fizik',
-    'Kimya',
-    'Biyoloji',
-    'Tarih',
-    'Edebiyat',
-    'Diğer',
-  ];
-
-  final List<String> _interests = [
-    'Müzik',
-    'Spor',
-    'Kitap',
-    'Film',
-    'Yemek',
-    'Seyahat',
-    'Teknoloji',
-    'Sanat',
-    'Fotoğrafçılık',
-    'Dans',
-    'Yoga',
-    'Fitness',
-    'Kahve',
-    'Konser',
-    'Tiyatro',
-    'Müze',
-    'Doğa',
-    'Oyun',
-    'Kodlama',
-    'Dil Öğrenme',
-  ];
+  bool _isLoadingPosts = false;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _loadUserPosts();
   }
 
   Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      setState(() {
-        _displayNameController.text = user.displayName ?? '';
-      });
+      try {
+        // Firestore'dan kullanıcı verilerini al
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (userDoc.exists) {
+          final userData = userDoc.data()!;
+          setState(() {
+            _userData = userData;
+          });
+        }
+      } catch (e) {
+        print('Kullanıcı verileri yüklenirken hata: $e');
+      }
     }
   }
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+  Future<void> _loadUserPosts() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-    if (pickedFile != null) {
-      setState(() {
-        _profileImage = File(pickedFile.path);
-      });
-    }
-  }
-
-  Future<String?> _uploadImage() async {
-    if (_profileImage == null) return null;
+    setState(() => _isLoadingPosts = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return null;
+      print('Profil ekranında check-in aranıyor...');
+      print('Aranan kullanıcı UID: ${user.uid}');
 
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('profile_images')
-          .child('${user.uid}.jpg');
+      // Önce sadece userId ile filtrele, sonra client-side'da isActive'yi kontrol et
+      final query = FirebaseFirestore.instance
+          .collection('checkins')
+          .where('userId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true);
 
-      await ref.putFile(_profileImage!);
-      return await ref.getDownloadURL();
-    } catch (e) {
-      print('Fotoğraf yüklenirken hata: $e');
-      return null;
-    }
-  }
+      final snapshot = await query.get();
+      print('Kullanıcı check-in sayısı: ${snapshot.docs.length}');
 
-  Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) return;
+      final posts = snapshot.docs.map((doc) {
+        print('Doküman: ${doc.id} - ${doc.data()}');
+        return CheckinModel.fromFirestore(doc);
+      }).where((post) {
+        print('Check-in: ${post.id} - isActive: ${post.isActive}');
+        return post.isActive;
+      }) // Client-side filtering
+          .toList();
 
-    setState(() => _isLoading = true);
-
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      // Fotoğraf yükle
-      String? photoURL;
-      if (_profileImage != null) {
-        photoURL = await _uploadImage();
+      print('Aktif check-in sayısı: ${posts.length}');
+      for (final post in posts) {
+        print(
+            'Profilde gösterilecek check-in: ${post.id} | ${post.message} | ${post.createdAt}');
       }
 
-      // Profil verilerini hazırla
-      final profileData = {
-        'displayName': _displayNameController.text.trim(),
-        'university': _selectedUniversity,
-        'department': _selectedDepartment,
-        'age': _selectedAge,
-        'gender': _selectedGender,
-        'interests': _selectedInterests,
-        'bio': _bioController.text.trim(),
-        if (photoURL != null) 'photoURL': photoURL,
-      };
+      setState(() {
+        _userPosts = posts;
+      });
+    } catch (e) {
+      print('Kullanıcı gönderileri yüklenirken hata: $e');
+      // Hata durumunda boş liste göster
+      setState(() {
+        _userPosts = [];
+      });
+    } finally {
+      setState(() => _isLoadingPosts = false);
+    }
+  }
 
-      // Firestore'a kaydet
-      await _authService.updateUserProfile(user.uid, profileData);
-
+  void _logout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profil başarıyla oluşturuldu!')),
+          SnackBar(
+            content: const Text('Başarıyla çıkış yapıldı'),
+            backgroundColor: AppTheme.iosGreen,
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
         );
-
-        // Ana ekrana yönlendir
-        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Profil kaydedilirken hata: $e')),
-      );
-    } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Çıkış yapılırken hata: $e'),
+            backgroundColor: AppTheme.iosRed,
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (user == null)
+      return Scaffold(
+        backgroundColor:
+            isDark ? AppTheme.iosDarkBackground : AppTheme.iosBackground,
+        body: Center(
+          child: Text(
+            'Kullanıcı bulunamadı',
+            style: AppTheme.iosFont.copyWith(
+              color: isDark
+                  ? AppTheme.iosDarkPrimaryText
+                  : AppTheme.iosPrimaryText,
+            ),
+          ),
+        ),
+      );
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profil Oluştur'),
-        automaticallyImplyLeading: false,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Profil Fotoğrafı
-                    Center(
-                      child: Stack(
-                        children: [
-                          CircleAvatar(
-                            radius: 60,
-                            backgroundImage: _profileImage != null
-                                ? FileImage(_profileImage!)
-                                : null,
-                            child: _profileImage == null
-                                ? const Icon(Icons.person, size: 60)
-                                : null,
+      backgroundColor:
+          isDark ? AppTheme.iosDarkBackground : AppTheme.iosBackground,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // iOS Style Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppTheme.iosDarkSecondaryBackground
+                    : AppTheme.iosSecondaryBackground,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.iosOrange,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.person,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Profilim',
+                          style: AppTheme.iosFontMedium.copyWith(
+                            color: isDark
+                                ? AppTheme.iosDarkPrimaryText
+                                : AppTheme.iosPrimaryText,
                           ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: CircleAvatar(
-                              backgroundColor: Colors.deepPurple,
-                              child: IconButton(
-                                icon: const Icon(Icons.camera_alt,
-                                    color: Colors.white),
-                                onPressed: _pickImage,
+                        ),
+                        Text(
+                          '${_userPosts.length} paylaşım',
+                          style: AppTheme.iosFontSmall.copyWith(
+                            color: isDark
+                                ? AppTheme.iosDarkSecondaryText
+                                : AppTheme.iosSecondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () async {
+                      setState(() {
+                        _isLoading = true;
+                        _isLoadingPosts = true;
+                      });
+
+                      try {
+                        await _loadUserData();
+                        await _loadUserPosts();
+
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Profil güncellendi!'),
+                              backgroundColor: AppTheme.iosGreen,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Güncelleme sırasında hata: $e'),
+                              backgroundColor: AppTheme.iosRed,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                          );
+                        }
+                      } finally {
+                        if (mounted) {
+                          setState(() {
+                            _isLoading = false;
+                            _isLoadingPosts = false;
+                          });
+                        }
+                      }
+                    },
+                    icon: Icon(
+                      Icons.refresh,
+                      color: AppTheme.iosOrange,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfileEditScreen(),
+                        ),
+                      ).then((_) {
+                        // Profil düzenlendikten sonra verileri yenile
+                        _loadUserData();
+                      });
+                    },
+                    icon: Icon(
+                      Icons.edit,
+                      color: AppTheme.iosOrange,
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    icon: Icon(
+                      Icons.more_vert,
+                      color: AppTheme.iosOrange,
+                    ),
+                    onSelected: (value) {
+                      if (value == 'logout') {
+                        _logout();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'logout',
+                        child: Row(
+                          children: [
+                            Icon(Icons.logout, color: AppTheme.iosRed),
+                            SizedBox(width: 8),
+                            Text('Çıkış Yap'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Content
+            Expanded(
+              child: _isLoading
+                  ? Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppTheme.iosDarkSecondaryBackground
+                              : AppTheme.iosSecondaryBackground,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              color: AppTheme.iosOrange,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Profil yükleniyor...',
+                              style: AppTheme.iosFont.copyWith(
+                                color: isDark
+                                    ? AppTheme.iosDarkSecondaryText
+                                    : AppTheme.iosSecondaryText,
                               ),
                             ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : _buildProfileContent(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileContent() {
+    final user = FirebaseAuth.instance.currentUser;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          // Profil Bilgileri
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? AppTheme.iosDarkSecondaryBackground
+                  : AppTheme.iosSecondaryBackground,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Profil Fotoğrafı ve Bilgiler
+                Row(
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(40),
+                        border: Border.all(
+                          color: AppTheme.iosOrange.withOpacity(0.2),
+                          width: 3,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(40),
+                        child: _userData?['photoURL'] != null
+                            ? Image.network(
+                                _userData!['photoURL'],
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    color: isDark
+                                        ? AppTheme.iosDarkTertiaryBackground
+                                        : AppTheme.iosTertiaryBackground,
+                                    child: Icon(
+                                      Icons.person,
+                                      size: 40,
+                                      color: isDark
+                                          ? AppTheme.iosDarkSecondaryText
+                                          : AppTheme.iosSecondaryText,
+                                    ),
+                                  );
+                                },
+                              )
+                            : Container(
+                                color: isDark
+                                    ? AppTheme.iosDarkTertiaryBackground
+                                    : AppTheme.iosTertiaryBackground,
+                                child: Icon(
+                                  Icons.person,
+                                  size: 40,
+                                  color: isDark
+                                      ? AppTheme.iosDarkSecondaryText
+                                      : AppTheme.iosSecondaryText,
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _userData?['displayName'] ??
+                                user?.displayName ??
+                                'İsimsiz',
+                            style: AppTheme.iosFontLarge.copyWith(
+                              color: isDark
+                                  ? AppTheme.iosDarkPrimaryText
+                                  : AppTheme.iosPrimaryText,
+                            ),
                           ),
+                          if (_userData?['university'] != null) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.school,
+                                  size: 16,
+                                  color: isDark
+                                      ? AppTheme.iosDarkSecondaryText
+                                      : AppTheme.iosSecondaryText,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _userData!['university'],
+                                  style: AppTheme.iosFontSmall.copyWith(
+                                    color: isDark
+                                        ? AppTheme.iosDarkSecondaryText
+                                        : AppTheme.iosSecondaryText,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          if (_userData?['bio'] != null &&
+                              _userData!['bio'].isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? AppTheme.iosDarkTertiaryBackground
+                                    : AppTheme.iosTertiaryBackground,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                _userData!['bio'],
+                                style: AppTheme.iosFont.copyWith(
+                                  color: isDark
+                                      ? AppTheme.iosDarkPrimaryText
+                                      : AppTheme.iosPrimaryText,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                  ],
+                ),
+                const SizedBox(height: 20),
 
-                    // Ad Soyad
-                    TextFormField(
-                      controller: _displayNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Ad Soyad',
-                        border: OutlineInputBorder(),
+                // İstatistikler
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildStatColumn(
+                        'Gönderi', _userPosts.length.toString(), isDark),
+                    _buildStatColumn(
+                        'Beğeni', '0', isDark), // TODO: Beğeni sayısını hesapla
+                    _buildStatColumn('Takipçi', '0',
+                        isDark), // TODO: Takipçi sayısını hesapla
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Gönderiler
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? AppTheme.iosDarkSecondaryBackground
+                  : AppTheme.iosSecondaryBackground,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.post_add,
+                        color: AppTheme.iosOrange,
+                        size: 24,
                       ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Ad soyad gerekli';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Üniversite
-                    DropdownButtonFormField<String>(
-                      value: _selectedUniversity.isEmpty
-                          ? null
-                          : _selectedUniversity,
-                      decoration: const InputDecoration(
-                        labelText: 'Üniversite',
-                        border: OutlineInputBorder(),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Gönderilerim',
+                        style: AppTheme.iosFontMedium.copyWith(
+                          color: isDark
+                              ? AppTheme.iosDarkPrimaryText
+                              : AppTheme.iosPrimaryText,
+                        ),
                       ),
-                      items: _universities.map((university) {
-                        return DropdownMenuItem(
-                          value: university,
-                          child: Text(university),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedUniversity = value ?? '';
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Üniversite seçin';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Bölüm
-                    DropdownButtonFormField<String>(
-                      value: _selectedDepartment.isEmpty
-                          ? null
-                          : _selectedDepartment,
-                      decoration: const InputDecoration(
-                        labelText: 'Bölüm',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: _departments.map((department) {
-                        return DropdownMenuItem(
-                          value: department,
-                          child: Text(department),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedDepartment = value ?? '';
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Bölüm seçin';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Yaş
-                    Row(
-                      children: [
-                        const Text('Yaş: '),
-                        Expanded(
-                          child: Slider(
-                            value: _selectedAge.toDouble(),
-                            min: 18,
-                            max: 30,
-                            divisions: 12,
-                            label: _selectedAge.toString(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedAge = value.round();
-                              });
+                    ],
+                  ),
+                ),
+                _isLoadingPosts
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: CircularProgressIndicator(
+                            color: AppTheme.iosOrange,
+                          ),
+                        ),
+                      )
+                    : _userPosts.isEmpty
+                        ? Center(
+                            child: Container(
+                              padding: const EdgeInsets.all(32),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.post_add,
+                                    size: 64,
+                                    color: isDark
+                                        ? AppTheme.iosDarkSecondaryText
+                                        : AppTheme.iosSecondaryText,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Henüz gönderi yok',
+                                    style: AppTheme.iosFontMedium.copyWith(
+                                      color: isDark
+                                          ? AppTheme.iosDarkPrimaryText
+                                          : AppTheme.iosPrimaryText,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'İlk check-in\'ini yap!',
+                                    style: AppTheme.iosFontSmall.copyWith(
+                                      color: isDark
+                                          ? AppTheme.iosDarkSecondaryText
+                                          : AppTheme.iosSecondaryText,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _userPosts.length,
+                            itemBuilder: (context, index) {
+                              return _buildPostCard(_userPosts[index], isDark);
                             },
                           ),
-                        ),
-                        Text(_selectedAge.toString()),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                    // Cinsiyet
+  Widget _buildStatColumn(String label, String value, bool isDark) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: AppTheme.iosFontLarge.copyWith(
+            color: AppTheme.iosOrange,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: AppTheme.iosFontSmall.copyWith(
+            color: isDark
+                ? AppTheme.iosDarkSecondaryText
+                : AppTheme.iosSecondaryText,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPostCard(CheckinModel post, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppTheme.iosDarkTertiaryBackground
+            : AppTheme.iosTertiaryBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppTheme.iosOrange.withOpacity(0.2),
+                    width: 2,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: post.userPhotoURL != null
+                      ? Image.network(
+                          post.userPhotoURL!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: isDark
+                                  ? AppTheme.iosDarkSecondaryBackground
+                                  : AppTheme.iosSecondaryBackground,
+                              child: Icon(
+                                Icons.person,
+                                size: 20,
+                                color: isDark
+                                    ? AppTheme.iosDarkSecondaryText
+                                    : AppTheme.iosSecondaryText,
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
+                          color: isDark
+                              ? AppTheme.iosDarkSecondaryBackground
+                              : AppTheme.iosSecondaryBackground,
+                          child: Icon(
+                            Icons.person,
+                            size: 20,
+                            color: isDark
+                                ? AppTheme.iosDarkSecondaryText
+                                : AppTheme.iosSecondaryText,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      post.userDisplayName,
+                      style: AppTheme.iosFontMedium.copyWith(
+                        color: isDark
+                            ? AppTheme.iosDarkPrimaryText
+                            : AppTheme.iosPrimaryText,
+                      ),
+                    ),
                     Row(
                       children: [
-                        const Text('Cinsiyet: '),
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Radio<String>(
-                                value: 'Erkek',
-                                groupValue: _selectedGender,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedGender = value ?? '';
-                                  });
-                                },
-                              ),
-                              const Text('Erkek'),
-                              Radio<String>(
-                                value: 'Kadın',
-                                groupValue: _selectedGender,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedGender = value ?? '';
-                                  });
-                                },
-                              ),
-                              const Text('Kadın'),
-                            ],
+                        Icon(
+                          Icons.location_on,
+                          size: 14,
+                          color: isDark
+                              ? AppTheme.iosDarkSecondaryText
+                              : AppTheme.iosSecondaryText,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          post.locationName,
+                          style: AppTheme.iosFontSmall.copyWith(
+                            color: isDark
+                                ? AppTheme.iosDarkSecondaryText
+                                : AppTheme.iosSecondaryText,
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // İlgi Alanları
-                    const Text('İlgi Alanları:',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: _interests.map((interest) {
-                        final isSelected =
-                            _selectedInterests.contains(interest);
-                        return FilterChip(
-                          label: Text(interest),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            setState(() {
-                              if (selected) {
-                                if (_selectedInterests.length < 5) {
-                                  _selectedInterests.add(interest);
-                                }
-                              } else {
-                                _selectedInterests.remove(interest);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Biyografi
-                    TextFormField(
-                      controller: _bioController,
-                      decoration: const InputDecoration(
-                        labelText: 'Biyografi (Opsiyonel)',
-                        border: OutlineInputBorder(),
-                        hintText: 'Kendinizden bahsedin...',
-                      ),
-                      maxLines: 3,
-                      maxLength: 200,
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Kaydet Butonu
-                    ElevatedButton(
-                      onPressed: _selectedGender.isEmpty ? null : _saveProfile,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: const Text('Profili Kaydet'),
                     ),
                   ],
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? AppTheme.iosDarkSecondaryBackground
+                      : AppTheme.iosSecondaryBackground,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _formatTimeAgo(post.createdAt),
+                  style: AppTheme.iosFontCaption.copyWith(
+                    color: isDark
+                        ? AppTheme.iosDarkSecondaryText
+                        : AppTheme.iosSecondaryText,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            post.message,
+            style: AppTheme.iosFont.copyWith(
+              color: isDark
+                  ? AppTheme.iosDarkPrimaryText
+                  : AppTheme.iosPrimaryText,
+              height: 1.4,
             ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(
+                Icons.favorite,
+                size: 16,
+                color: AppTheme.iosRed,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${post.likes.length}',
+                style: AppTheme.iosFontSmall.copyWith(
+                  color: isDark
+                      ? AppTheme.iosDarkSecondaryText
+                      : AppTheme.iosSecondaryText,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Icon(
+                Icons.comment,
+                size: 16,
+                color: isDark
+                    ? AppTheme.iosDarkSecondaryText
+                    : AppTheme.iosSecondaryText,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${post.comments.length}',
+                style: AppTheme.iosFontSmall.copyWith(
+                  color: isDark
+                      ? AppTheme.iosDarkSecondaryText
+                      : AppTheme.iosSecondaryText,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
+  }
+
+  String _formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 1) {
+      return 'Az önce';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} dakika önce';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} saat önce';
+    } else {
+      return '${difference.inDays} gün önce';
+    }
   }
 }

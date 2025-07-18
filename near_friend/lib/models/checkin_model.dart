@@ -39,7 +39,9 @@ class CheckinModel {
       message: data['message'] ?? '',
       location: data['location'] ?? const GeoPoint(0, 0),
       locationName: data['locationName'] ?? '',
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      createdAt: data['createdAt'] != null
+          ? (data['createdAt'] as Timestamp).toDate()
+          : DateTime.now(),
       likes: List<String>.from(data['likes'] ?? []),
       comments: List<String>.from(data['comments'] ?? []),
       privacySettings: data['privacySettings'],

@@ -2,136 +2,130 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserModel {
   final String id;
-  final String email;
-  final String phoneNumber;
   final String displayName;
   final String? photoURL;
+  final String email;
   final String university;
   final String department;
   final int age;
   final String gender;
   final List<String> interests;
   final String? bio;
-  final GeoPoint? location;
   final DateTime createdAt;
-  final bool isVerified;
-  final bool isBanned;
-  final int verificationScore;
-  final Map<String, dynamic>? privacySettings;
+  final DateTime lastActiveAt;
+  final bool isOnline;
+  final GeoPoint? currentLocation;
   final List<String> blockedUsers;
-  final List<String> blockedBy;
+  final List<String> matchedUsers;
+  final List<String> pendingMatches;
+  final List<String> receivedMatches;
 
   UserModel({
     required this.id,
-    required this.email,
-    required this.phoneNumber,
     required this.displayName,
     this.photoURL,
+    required this.email,
     required this.university,
     required this.department,
     required this.age,
     required this.gender,
     required this.interests,
     this.bio,
-    this.location,
     required this.createdAt,
-    required this.isVerified,
-    required this.isBanned,
-    required this.verificationScore,
-    this.privacySettings,
+    required this.lastActiveAt,
+    required this.isOnline,
+    this.currentLocation,
     required this.blockedUsers,
-    required this.blockedBy,
+    required this.matchedUsers,
+    required this.pendingMatches,
+    required this.receivedMatches,
   });
 
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return UserModel(
       id: doc.id,
-      email: data['email'] ?? '',
-      phoneNumber: data['phoneNumber'] ?? '',
       displayName: data['displayName'] ?? '',
       photoURL: data['photoURL'],
+      email: data['email'] ?? '',
       university: data['university'] ?? '',
       department: data['department'] ?? '',
-      age: data['age'] ?? 0,
+      age: data['age'] ?? 18,
       gender: data['gender'] ?? '',
       interests: List<String>.from(data['interests'] ?? []),
       bio: data['bio'],
-      location: data['location'],
       createdAt: (data['createdAt'] as Timestamp).toDate(),
-      isVerified: data['isVerified'] ?? false,
-      isBanned: data['isBanned'] ?? false,
-      verificationScore: data['verificationScore'] ?? 0,
-      privacySettings: data['privacySettings'],
+      lastActiveAt: (data['lastActiveAt'] as Timestamp).toDate(),
+      isOnline: data['isOnline'] ?? false,
+      currentLocation: data['currentLocation'],
       blockedUsers: List<String>.from(data['blockedUsers'] ?? []),
-      blockedBy: List<String>.from(data['blockedBy'] ?? []),
+      matchedUsers: List<String>.from(data['matchedUsers'] ?? []),
+      pendingMatches: List<String>.from(data['pendingMatches'] ?? []),
+      receivedMatches: List<String>.from(data['receivedMatches'] ?? []),
     );
   }
 
   Map<String, dynamic> toFirestore() {
     return {
-      'email': email,
-      'phoneNumber': phoneNumber,
       'displayName': displayName,
       'photoURL': photoURL,
+      'email': email,
       'university': university,
       'department': department,
       'age': age,
       'gender': gender,
       'interests': interests,
       'bio': bio,
-      'location': location,
       'createdAt': Timestamp.fromDate(createdAt),
-      'isVerified': isVerified,
-      'isBanned': isBanned,
-      'verificationScore': verificationScore,
-      'privacySettings': privacySettings,
+      'lastActiveAt': Timestamp.fromDate(lastActiveAt),
+      'isOnline': isOnline,
+      'currentLocation': currentLocation,
       'blockedUsers': blockedUsers,
-      'blockedBy': blockedBy,
+      'matchedUsers': matchedUsers,
+      'pendingMatches': pendingMatches,
+      'receivedMatches': receivedMatches,
     };
   }
 
   UserModel copyWith({
     String? id,
-    String? email,
-    String? phoneNumber,
     String? displayName,
     String? photoURL,
+    String? email,
     String? university,
     String? department,
     int? age,
     String? gender,
     List<String>? interests,
     String? bio,
-    GeoPoint? location,
     DateTime? createdAt,
-    bool? isVerified,
-    bool? isBanned,
-    int? verificationScore,
-    Map<String, dynamic>? privacySettings,
+    DateTime? lastActiveAt,
+    bool? isOnline,
+    GeoPoint? currentLocation,
     List<String>? blockedUsers,
-    List<String>? blockedBy,
+    List<String>? matchedUsers,
+    List<String>? pendingMatches,
+    List<String>? receivedMatches,
   }) {
     return UserModel(
       id: id ?? this.id,
-      email: email ?? this.email,
-      phoneNumber: phoneNumber ?? this.phoneNumber,
       displayName: displayName ?? this.displayName,
       photoURL: photoURL ?? this.photoURL,
+      email: email ?? this.email,
       university: university ?? this.university,
       department: department ?? this.department,
       age: age ?? this.age,
       gender: gender ?? this.gender,
       interests: interests ?? this.interests,
       bio: bio ?? this.bio,
-      location: location ?? this.location,
       createdAt: createdAt ?? this.createdAt,
-      isVerified: isVerified ?? this.isVerified,
-      isBanned: isBanned ?? this.isBanned,
-      verificationScore: verificationScore ?? this.verificationScore,
-      privacySettings: privacySettings ?? this.privacySettings,
+      lastActiveAt: lastActiveAt ?? this.lastActiveAt,
+      isOnline: isOnline ?? this.isOnline,
+      currentLocation: currentLocation ?? this.currentLocation,
       blockedUsers: blockedUsers ?? this.blockedUsers,
-      blockedBy: blockedBy ?? this.blockedBy,
+      matchedUsers: matchedUsers ?? this.matchedUsers,
+      pendingMatches: pendingMatches ?? this.pendingMatches,
+      receivedMatches: receivedMatches ?? this.receivedMatches,
     );
   }
 }

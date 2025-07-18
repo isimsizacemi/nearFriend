@@ -8,7 +8,10 @@ import 'screens/feed_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/checkin_screen.dart';
 import 'screens/quiz_screen.dart';
+import 'screens/match_screen.dart';
+import 'screens/chat_screen.dart';
 import 'services/auth_service.dart';
+import 'utils/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,17 +29,27 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _isDarkMode = false;
+
+  void _toggleTheme() {
+    setState(() {
+      _isDarkMode = !_isDarkMode;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'nearFriend',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
+      theme: _isDarkMode ? AppTheme.darkTheme : AppTheme.lightTheme,
       home: const AuthWrapper(),
     );
   }
@@ -191,12 +204,16 @@ class MainApp extends StatefulWidget {
 
 class _MainAppState extends State<MainApp> {
   int _selectedIndex = 0;
+  final GlobalKey<FeedScreenState> _feedScreenKey =
+      GlobalKey<FeedScreenState>();
 
-  static const List<Widget> _screens = [
-    FeedScreen(),
-    CheckinScreen(),
-    ProfileScreen(),
-  ];
+  List<Widget> get _screens => [
+        FeedScreen(key: _feedScreenKey),
+        const MatchScreen(),
+        const CheckinScreen(),
+        const ChatScreen(),
+        const ProfileScreen(),
+      ];
 
   void _onItemTapped(int index) {
     setState(() {
@@ -206,26 +223,117 @@ class _MainAppState extends State<MainApp> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: _screens[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Ana Akış',
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: isDark
+              ? AppTheme.iosDarkSecondaryBackground
+              : AppTheme.iosSecondaryBackground,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(
+                  icon: Icons.home_outlined,
+                  selectedIcon: Icons.home,
+                  label: 'Ana Akış',
+                  index: 0,
+                  isSelected: _selectedIndex == 0,
+                ),
+                _buildNavItem(
+                  icon: Icons.favorite_outline,
+                  selectedIcon: Icons.favorite,
+                  label: 'Eşleşme',
+                  index: 1,
+                  isSelected: _selectedIndex == 1,
+                ),
+                _buildNavItem(
+                  icon: Icons.add_location_outlined,
+                  selectedIcon: Icons.add_location,
+                  label: 'Check-in',
+                  index: 2,
+                  isSelected: _selectedIndex == 2,
+                ),
+                _buildNavItem(
+                  icon: Icons.chat_bubble_outline,
+                  selectedIcon: Icons.chat_bubble,
+                  label: 'Sohbet',
+                  index: 3,
+                  isSelected: _selectedIndex == 3,
+                ),
+                _buildNavItem(
+                  icon: Icons.person_outline,
+                  selectedIcon: Icons.person,
+                  label: 'Profil',
+                  index: 4,
+                  isSelected: _selectedIndex == 4,
+                ),
+              ],
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add_location),
-            label: 'Check-in',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.deepPurple,
-        onTap: _onItemTapped,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required IconData icon,
+    required IconData selectedIcon,
+    required String label,
+    required int index,
+    required bool isSelected,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GestureDetector(
+      onTap: () => _onItemTapped(index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppTheme.iosPurple.withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? selectedIcon : icon,
+              color: isSelected
+                  ? AppTheme.iosPurple
+                  : isDark
+                      ? AppTheme.iosDarkSecondaryText
+                      : AppTheme.iosSecondaryText,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: AppTheme.iosFontCaption.copyWith(
+                color: isSelected
+                    ? AppTheme.iosPurple
+                    : isDark
+                        ? AppTheme.iosDarkSecondaryText
+                        : AppTheme.iosSecondaryText,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,6 +1,6 @@
-package com.isimsizacemi.near_friend
+package com.isimsizacemi.nearfriends
 
 import io.flutter.embedding.android.FlutterActivity
 
 class MainActivity: FlutterActivity() {
-}
+} 

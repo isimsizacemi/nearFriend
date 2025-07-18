@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import '../services/email_service.dart';
+import '../utils/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -119,7 +120,9 @@ class _LoginScreenState extends State<LoginScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red,
+        backgroundColor: AppTheme.iosRed,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -128,7 +131,9 @@ class _LoginScreenState extends State<LoginScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.green,
+        backgroundColor: AppTheme.iosGreen,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -142,199 +147,274 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isLoginMode ? 'Giriş Yap' : 'Kayıt Ol'),
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 40),
+      backgroundColor:
+          isDark ? AppTheme.iosDarkBackground : AppTheme.iosBackground,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 60),
 
-              // Logo ve başlık
-              const Icon(
-                Icons.person_pin_circle,
-                size: 80,
-                color: Colors.deepPurple,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'nearFriend',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.deepPurple,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _isLoginMode
-                    ? 'Hesabınıza giriş yapın'
-                    : 'Yeni hesap oluşturun',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 40),
-
-              // Email alanı
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: 'Email Adresi',
-                  prefixIcon: const Icon(Icons.email),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                // Logo ve başlık
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: AppTheme.iosBlue,
+                    borderRadius: BorderRadius.circular(25),
                   ),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Email adresi gerekli';
-                  }
-                  if (!value.contains('@')) {
-                    return 'Geçerli bir email adresi girin';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-
-              // Şifre alanı
-              TextFormField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  labelText: 'Şifre',
-                  prefixIcon: const Icon(Icons.lock),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility
-                          : Icons.visibility_off,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
+                  child: const Icon(
+                    Icons.people,
+                    size: 50,
+                    color: Colors.white,
                   ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey[50],
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Şifre gerekli';
-                  }
-                  if (value.length < 6) {
-                    return 'Şifre en az 6 karakter olmalı';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 32),
+                Text(
+                  'nearFriend',
+                  style: AppTheme.iosFontLarge.copyWith(
+                    color: isDark
+                        ? AppTheme.iosDarkPrimaryText
+                        : AppTheme.iosPrimaryText,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _isLoginMode
+                      ? 'Hesabınıza giriş yapın'
+                      : 'Yeni hesap oluşturun',
+                  style: AppTheme.iosFontSmall.copyWith(
+                    color: isDark
+                        ? AppTheme.iosDarkSecondaryText
+                        : AppTheme.iosSecondaryText,
+                  ),
+                ),
+                const SizedBox(height: 48),
 
-              // Şifre tekrar alanı (sadece register modunda)
-              if (!_isLoginMode) ...[
+                // Email alanı
                 TextFormField(
-                  controller: _confirmPasswordController,
-                  obscureText: _obscureConfirmPassword,
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  style: AppTheme.iosFont.copyWith(
+                    color: isDark
+                        ? AppTheme.iosDarkPrimaryText
+                        : AppTheme.iosPrimaryText,
+                  ),
                   decoration: InputDecoration(
-                    labelText: 'Şifre Tekrar',
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                        });
-                      },
+                    labelText: 'Email Adresi',
+                    prefixIcon: Icon(
+                      Icons.email_outlined,
+                      color: isDark
+                          ? AppTheme.iosDarkSecondaryText
+                          : AppTheme.iosSecondaryText,
                     ),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
                     ),
                     filled: true,
-                    fillColor: Colors.grey[50],
+                    fillColor: isDark
+                        ? AppTheme.iosDarkTertiaryBackground
+                        : AppTheme.iosTertiaryBackground,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 16),
+                    labelStyle: AppTheme.iosFont.copyWith(
+                      color: isDark
+                          ? AppTheme.iosDarkSecondaryText
+                          : AppTheme.iosSecondaryText,
+                    ),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Şifre tekrarı gerekli';
+                      return 'Email adresi gerekli';
                     }
-                    if (value != _passwordController.text) {
-                      return 'Şifreler eşleşmiyor';
+                    if (!value.contains('@')) {
+                      return 'Geçerli bir email adresi girin';
                     }
                     return null;
                   },
                 ),
-                const SizedBox(height: 20),
-              ],
+                const SizedBox(height: 16),
 
-              // Ana buton
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed:
-                      _isLoading ? null : (_isLoginMode ? _login : _register),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                // Şifre alanı
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  style: AppTheme.iosFont.copyWith(
+                    color: isDark
+                        ? AppTheme.iosDarkPrimaryText
+                        : AppTheme.iosPrimaryText,
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : Text(
-                          _isLoginMode ? 'Giriş Yap' : 'Kayıt Ol',
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Mod değiştirme butonu
-              TextButton(
-                onPressed: _isLoading
-                    ? null
-                    : () {
+                  decoration: InputDecoration(
+                    labelText: 'Şifre',
+                    prefixIcon: Icon(
+                      Icons.lock_outlined,
+                      color: isDark
+                          ? AppTheme.iosDarkSecondaryText
+                          : AppTheme.iosSecondaryText,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: isDark
+                            ? AppTheme.iosDarkSecondaryText
+                            : AppTheme.iosSecondaryText,
+                      ),
+                      onPressed: () {
                         setState(() {
-                          _isLoginMode = !_isLoginMode;
-                          _resetForm();
+                          _obscurePassword = !_obscurePassword;
                         });
                       },
-                child: Text(
-                  _isLoginMode
-                      ? 'Hesabınız yok mu? Kayıt olun'
-                      : 'Zaten hesabınız var mı? Giriş yapın',
-                  style: const TextStyle(color: Colors.deepPurple),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: isDark
+                        ? AppTheme.iosDarkTertiaryBackground
+                        : AppTheme.iosTertiaryBackground,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 16),
+                    labelStyle: AppTheme.iosFont.copyWith(
+                      color: isDark
+                          ? AppTheme.iosDarkSecondaryText
+                          : AppTheme.iosSecondaryText,
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Şifre gerekli';
+                    }
+                    if (value.length < 6) {
+                      return 'Şifre en az 6 karakter olmalı';
+                    }
+                    return null;
+                  },
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+
+                // Şifre onay alanı (sadece kayıt modunda)
+                if (!_isLoginMode) ...[
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    obscureText: _obscureConfirmPassword,
+                    style: AppTheme.iosFont.copyWith(
+                      color: isDark
+                          ? AppTheme.iosDarkPrimaryText
+                          : AppTheme.iosPrimaryText,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Şifre Tekrar',
+                      prefixIcon: Icon(
+                        Icons.lock_outlined,
+                        color: isDark
+                            ? AppTheme.iosDarkSecondaryText
+                            : AppTheme.iosSecondaryText,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: isDark
+                              ? AppTheme.iosDarkSecondaryText
+                              : AppTheme.iosSecondaryText,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                          });
+                        },
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: isDark
+                          ? AppTheme.iosDarkTertiaryBackground
+                          : AppTheme.iosTertiaryBackground,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 16),
+                      labelStyle: AppTheme.iosFont.copyWith(
+                        color: isDark
+                            ? AppTheme.iosDarkSecondaryText
+                            : AppTheme.iosSecondaryText,
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Şifre tekrarı gerekli';
+                      }
+                      if (value != _passwordController.text) {
+                        return 'Şifreler eşleşmiyor';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // Giriş/Kayıt butonu
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed:
+                        _isLoading ? null : (_isLoginMode ? _login : _register),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.iosBlue,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle: AppTheme.iosFontBold,
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(_isLoginMode ? 'Giriş Yap' : 'Kayıt Ol'),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Mod değiştirme butonu
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _isLoginMode = !_isLoginMode;
+                      _resetForm();
+                    });
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.iosBlue,
+                    textStyle: AppTheme.iosFontBold,
+                  ),
+                  child: Text(
+                    _isLoginMode
+                        ? 'Hesabınız yok mu? Kayıt olun'
+                        : 'Zaten hesabınız var mı? Giriş yapın',
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
