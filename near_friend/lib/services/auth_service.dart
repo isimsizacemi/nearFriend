@@ -88,6 +88,12 @@ class AuthService {
           'isEmailVerified': firebaseUser.emailVerified, // Email doğrulandı mı
           'isActive': true,
           'isOnline': true,
+          'university': '',
+          'department': '',
+          'age': 18,
+          'gender': '',
+          'interests': [],
+          'bio': '',
         };
 
         await _firestore

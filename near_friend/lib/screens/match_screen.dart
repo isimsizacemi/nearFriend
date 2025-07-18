@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import '../services/match_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -29,7 +30,38 @@ class _MatchScreenState extends State<MatchScreen> {
   @override
   void initState() {
     super.initState();
+    _loadFilterSettings();
     _getCurrentLocation();
+  }
+
+  Future<void> _loadFilterSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _maxDistance = prefs.getDouble('match_max_distance') ?? 100.0;
+        _minAge = prefs.getInt('match_min_age') ?? 18;
+        _maxAge = prefs.getInt('match_max_age') ?? 50;
+        _preferredGender = prefs.getString('match_preferred_gender');
+      });
+    } catch (e) {
+      print('Filtre ayarları yüklenirken hata: $e');
+    }
+  }
+
+  Future<void> _saveFilterSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('match_max_distance', _maxDistance);
+      await prefs.setInt('match_min_age', _minAge);
+      await prefs.setInt('match_max_age', _maxAge);
+      if (_preferredGender != null) {
+        await prefs.setString('match_preferred_gender', _preferredGender!);
+      } else {
+        await prefs.remove('match_preferred_gender');
+      }
+    } catch (e) {
+      print('Filtre ayarları kaydedilirken hata: $e');
+    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -826,82 +858,195 @@ class _MatchScreenState extends State<MatchScreen> {
   }
 
   void _showFilterDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Filtreler'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Mesafe
-            Text('Maksimum mesafe: ${_maxDistance.round()}km'),
-            Slider(
-              value: _maxDistance.clamp(1.0, 100.0),
-              min: 1,
-              max: 100,
-              divisions: 99,
-              onChanged: (value) {
-                setState(() {
-                  _maxDistance = value;
-                });
-              },
-            ),
-            Text(
-              _maxDistance >= 100
-                  ? 'Mesafe sınırı yok (tüm kullanıcılar)'
-                  : 'Maksimum mesafe: ${_maxDistance.round()}km',
-              style: TextStyle(
-                fontSize: 12,
-                color: _maxDistance >= 100 ? Colors.green : null,
-                fontWeight: _maxDistance >= 100 ? FontWeight.bold : null,
+        backgroundColor: isDark
+            ? AppTheme.iosDarkSecondaryBackground
+            : AppTheme.iosSecondaryBackground,
+        title: Text(
+          'Filtre Ayarları',
+          style: AppTheme.iosFontMedium.copyWith(
+            color:
+                isDark ? AppTheme.iosDarkPrimaryText : AppTheme.iosPrimaryText,
+          ),
+        ),
+        content: Container(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Mesafe
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? AppTheme.iosDarkBackground
+                      : AppTheme.iosBackground,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Maksimum Mesafe',
+                      style: AppTheme.iosFontMedium.copyWith(
+                        color: isDark
+                            ? AppTheme.iosDarkPrimaryText
+                            : AppTheme.iosPrimaryText,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Slider(
+                      value: _maxDistance.clamp(1.0, 100.0),
+                      min: 1,
+                      max: 100,
+                      divisions: 99,
+                      activeColor: AppTheme.iosBlue,
+                      onChanged: (value) {
+                        setState(() {
+                          _maxDistance = value;
+                        });
+                      },
+                    ),
+                    Text(
+                      _maxDistance >= 100
+                          ? '🌍 Mesafe sınırı yok (tüm kullanıcılar)'
+                          : '📍 Maksimum mesafe: ${_maxDistance.round()}km',
+                      style: AppTheme.iosFontSmall.copyWith(
+                        color: _maxDistance >= 100
+                            ? AppTheme.iosGreen
+                            : AppTheme.iosBlue,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            // Yaş aralığı
-            Text('Yaş aralığı: $_minAge - $_maxAge'),
-            RangeSlider(
-              values: RangeValues(_minAge.toDouble(), _maxAge.toDouble()),
-              min: 18,
-              max: 50,
-              divisions: 32,
-              onChanged: (values) {
-                setState(() {
-                  _minAge = values.start.round();
-                  _maxAge = values.end.round();
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-            // Cinsiyet tercihi
-            DropdownButtonFormField<String>(
-              value: _preferredGender,
-              decoration: const InputDecoration(
-                labelText: 'Cinsiyet tercihi',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 16),
+
+              // Yaş aralığı
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? AppTheme.iosDarkBackground
+                      : AppTheme.iosBackground,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Yaş Aralığı',
+                      style: AppTheme.iosFontMedium.copyWith(
+                        color: isDark
+                            ? AppTheme.iosDarkPrimaryText
+                            : AppTheme.iosPrimaryText,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    RangeSlider(
+                      values:
+                          RangeValues(_minAge.toDouble(), _maxAge.toDouble()),
+                      min: 18,
+                      max: 50,
+                      divisions: 32,
+                      activeColor: AppTheme.iosPink,
+                      onChanged: (values) {
+                        setState(() {
+                          _minAge = values.start.round();
+                          _maxAge = values.end.round();
+                        });
+                      },
+                    ),
+                    Text(
+                      '👥 Yaş aralığı: $_minAge - $_maxAge',
+                      style: AppTheme.iosFontSmall.copyWith(
+                        color: AppTheme.iosPink,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              items: const [
-                DropdownMenuItem(value: null, child: Text('Fark etmez')),
-                DropdownMenuItem(value: 'Erkek', child: Text('Erkek')),
-                DropdownMenuItem(value: 'Kadın', child: Text('Kadın')),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _preferredGender = value;
-                });
-              },
-            ),
-          ],
+              const SizedBox(height: 16),
+
+              // Cinsiyet tercihi
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? AppTheme.iosDarkBackground
+                      : AppTheme.iosBackground,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Cinsiyet Tercihi',
+                      style: AppTheme.iosFontMedium.copyWith(
+                        color: isDark
+                            ? AppTheme.iosDarkPrimaryText
+                            : AppTheme.iosPrimaryText,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: _preferredGender,
+                      decoration: InputDecoration(
+                        hintText: 'Cinsiyet seçin',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: isDark
+                            ? AppTheme.iosDarkSecondaryBackground
+                            : AppTheme.iosSecondaryBackground,
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                            value: null, child: Text('🤷 Fark etmez')),
+                        DropdownMenuItem(
+                            value: 'Erkek', child: Text('👨 Erkek')),
+                        DropdownMenuItem(
+                            value: 'Kadın', child: Text('👩 Kadın')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _preferredGender = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('İptal'),
+            child: Text(
+              'İptal',
+              style: AppTheme.iosFont.copyWith(color: AppTheme.iosRed),
+            ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              await _saveFilterSettings();
               Navigator.pop(context);
               _loadUsers();
             },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.iosBlue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
             child: const Text('Uygula'),
           ),
         ],

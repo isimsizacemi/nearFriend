@@ -62,83 +62,56 @@ class MatchService {
       final currentUserPending =
           List<String>.from(currentUserData['pendingMatches'] ?? []);
 
-      // Tüm kullanıcıları al ve filtrele
-      final usersQuery = _firestore
+      // Firestore'dan daha verimli sorgu
+      Query usersQuery = _firestore
           .collection('users')
           .where('hasCreatedProfile', isEqualTo: true)
           .where('isActive', isEqualTo: true);
 
-      final snapshot = await usersQuery.get();
-      print('Toplam kullanıcı sayısı: ${snapshot.docs.length}');
+      // Yaş filtresi varsa ekle
+      if (minAge > 18 || maxAge < 50) {
+        usersQuery = usersQuery.where('age', isGreaterThanOrEqualTo: minAge);
+      }
 
-      // Adım adım filtreleme
+      // Cinsiyet filtresi varsa ekle
+      if (preferredGender != null) {
+        usersQuery = usersQuery.where('gender', isEqualTo: preferredGender);
+      }
+
+      final snapshot = await usersQuery.get();
+      print('Firestore sorgusu sonucu: ${snapshot.docs.length} kullanıcı');
+
+      // Kullanıcıları filtrele
       var allUsers =
           snapshot.docs.map((doc) => UserModel.fromFirestore(doc)).toList();
-      print('1. Firestore\'dan alınan kullanıcı sayısı: ${allUsers.length}');
 
       // Kendi kullanıcısını filtrele
       allUsers = allUsers.where((user) => user.id != currentUser.uid).toList();
-      print('2. Kendi kullanıcısı filtrelendikten sonra: ${allUsers.length}');
 
-      // Blocked kullanıcıları filtrele
+      // Blocked, matched, pending kullanıcıları filtrele
       allUsers = allUsers
-          .where((user) => !currentUserBlocked.contains(user.id))
+          .where((user) =>
+              !currentUserBlocked.contains(user.id) &&
+              !currentUserMatched.contains(user.id) &&
+              !currentUserPending.contains(user.id))
           .toList();
-      print(
-          '3. Blocked kullanıcılar filtrelendikten sonra: ${allUsers.length}');
 
-      // Matched kullanıcıları filtrele
-      allUsers = allUsers
-          .where((user) => !currentUserMatched.contains(user.id))
-          .toList();
-      print(
-          '4. Matched kullanıcılar filtrelendikten sonra: ${allUsers.length}');
-
-      // Pending kullanıcıları filtrele
-      allUsers = allUsers
-          .where((user) => !currentUserPending.contains(user.id))
-          .toList();
-      print(
-          '5. Pending kullanıcılar filtrelendikten sonra: ${allUsers.length}');
-
-      // Yaş filtresi
-      allUsers = allUsers
-          .where((user) => user.age >= minAge && user.age <= maxAge)
-          .toList();
-      print('6. Yaş filtresi ($minAge-$maxAge) sonrası: ${allUsers.length}');
-
-      // Cinsiyet filtresi
-      if (preferredGender != null) {
-        allUsers =
-            allUsers.where((user) => user.gender == preferredGender).toList();
-        print(
-            '7. Cinsiyet filtresi ($preferredGender) sonrası: ${allUsers.length}');
-      }
-
-      print('Filtreleme sonrası kullanıcı sayısı: ${allUsers.length}');
-      print('Yaş aralığı: $minAge - $maxAge');
-      print('Tercih edilen cinsiyet: $preferredGender');
-
-      // Her kullanıcının detaylarını yazdır
-      for (final user in allUsers) {
-        print(
-            'Kullanıcı: ${user.displayName} - Yaş: ${user.age} - Cinsiyet: ${user.gender} - Konum: ${user.currentLocation != null ? "Var" : "Yok"}');
+      // Yaş filtresi (eğer Firestore'da yapılmadıysa)
+      if (minAge <= 18 && maxAge >= 50) {
+        allUsers = allUsers
+            .where((user) => user.age >= minAge && user.age <= maxAge)
+            .toList();
       }
 
       // Konum bazlı filtreleme
-      print('Konum filtresi başlıyor...');
-      print(
-          'Mevcut kullanıcı konumu: ${currentUserLocation?.latitude}, ${currentUserLocation?.longitude}');
-
       final nearbyUsers = allUsers.where((user) {
-        if (user.currentLocation == null) {
-          print('${user.displayName} kullanıcısının konumu yok');
+        if (user.currentLocation == null || currentUserLocation == null) {
           return false;
         }
 
-        if (currentUserLocation == null) {
-          print('Mevcut kullanıcının konumu yok');
-          return false;
+        // Eğer maxDistance çok büyükse (100km+) mesafe sınırı yok
+        if (maxDistance >= 100000) {
+          return true;
         }
 
         final distance = Geolocator.distanceBetween(
@@ -148,55 +121,45 @@ class MatchService {
           user.currentLocation!.longitude,
         );
 
-        print(
-            '${user.displayName} - Mesafe: ${(distance / 1000).toStringAsFixed(1)}km');
-        // Eğer maxDistance çok büyükse (100km+) mesafe sınırı yok
-        if (maxDistance >= 100000) {
-          return true;
-        }
         return distance <= maxDistance;
       }).toList();
 
       // Yakından uzağa sıralama
-      nearbyUsers.sort((a, b) {
-        if (currentUserLocation == null) return 0;
+      if (currentUserLocation != null) {
+        nearbyUsers.sort((a, b) {
+          if (a.currentLocation == null || b.currentLocation == null) return 0;
 
-        final aDistance = Geolocator.distanceBetween(
-          currentUserLocation.latitude,
-          currentUserLocation.longitude,
-          a.currentLocation!.latitude,
-          a.currentLocation!.longitude,
-        );
-        final bDistance = Geolocator.distanceBetween(
-          currentUserLocation.latitude,
-          currentUserLocation.longitude,
-          b.currentLocation!.latitude,
-          b.currentLocation!.longitude,
-        );
+          final aDistance = Geolocator.distanceBetween(
+            currentUserLocation!.latitude,
+            currentUserLocation!.longitude,
+            a.currentLocation!.latitude,
+            a.currentLocation!.longitude,
+          );
+          final bDistance = Geolocator.distanceBetween(
+            currentUserLocation!.latitude,
+            currentUserLocation!.longitude,
+            b.currentLocation!.latitude,
+            b.currentLocation!.longitude,
+          );
 
-        // Önce mesafeye göre sırala (yakından uzağa)
-        if ((aDistance - bDistance).abs() > 500) {
-          // 500m'den fazla fark varsa
-          return aDistance.compareTo(bDistance);
-        }
+          // Önce mesafeye göre sırala (yakından uzağa)
+          if ((aDistance - bDistance).abs() > 500) {
+            return aDistance.compareTo(bDistance);
+          }
 
-        // Mesafe yakınsa ilgi alanlarına göre sırala
-        final aCommonInterests = a.interests
-            .where((interest) => currentUserInterests.contains(interest))
-            .length;
-        final bCommonInterests = b.interests
-            .where((interest) => currentUserInterests.contains(interest))
-            .length;
+          // Mesafe yakınsa ilgi alanlarına göre sırala
+          final aCommonInterests = a.interests
+              .where((interest) => currentUserInterests.contains(interest))
+              .length;
+          final bCommonInterests = b.interests
+              .where((interest) => currentUserInterests.contains(interest))
+              .length;
 
-        return bCommonInterests.compareTo(aCommonInterests);
-      });
+          return bCommonInterests.compareTo(aCommonInterests);
+        });
+      }
 
       print('Yakındaki kullanıcı sayısı: ${nearbyUsers.length}');
-      if (maxDistance >= 100000) {
-        print('Mesafe sınırı yok (tüm kullanıcılar)');
-      } else {
-        print('Maksimum mesafe: ${maxDistance / 1000}km');
-      }
 
       return nearbyUsers;
     } catch (e) {
@@ -211,53 +174,56 @@ class MatchService {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return;
 
-      // Önce mevcut chat kontrolü yap
-      final chatId = [currentUser.uid, likedUserId]..sort();
-      final chatIdString = chatId.join('_');
+      // Önce DM isteği kontrolü yap
+      final existingRequest = await _firestore
+          .collection('dm_requests')
+          .where('fromUserId', isEqualTo: currentUser.uid)
+          .where('toUserId', isEqualTo: likedUserId)
+          .where('status', isEqualTo: 'pending')
+          .get();
 
-      final chatDoc =
-          await _firestore.collection('chats').doc(chatIdString).get();
-
-      if (chatDoc.exists) {
-        // Chat zaten var, otomatik mesaj gönder
-        await _firestore.collection('messages').add({
-          'senderId': currentUser.uid,
-          'receiverId': likedUserId,
-          'content': 'Seni beğendim 😊',
-          'timestamp': FieldValue.serverTimestamp(),
-          'isRead': false,
-          'messageType': 'text',
-        });
-
-        // Chat'i güncelle
-        await _firestore.collection('chats').doc(chatIdString).update({
-          'lastMessageAt': FieldValue.serverTimestamp(),
-          'lastMessage': 'Seni beğendim 😊',
-        });
-      } else {
-        // Chat yok, DM isteği gönder
-        await _firestore.collection('dm_requests').add({
-          'fromUserId': currentUser.uid,
-          'toUserId': likedUserId,
-          'message': 'Seni beğendim 😊',
-          'createdAt': FieldValue.serverTimestamp(),
-          'status': 'pending',
-          'type': 'like', // Like tipi DM isteği
-        });
-
-        // Mevcut kullanıcının pending listesine ekle
-        await _firestore.collection('users').doc(currentUser.uid).update({
-          'pendingMatches': FieldValue.arrayUnion([likedUserId]),
-        });
-
-        // Beğenilen kullanıcının received listesine ekle
-        await _firestore.collection('users').doc(likedUserId).update({
-          'receivedMatches': FieldValue.arrayUnion([currentUser.uid]),
-        });
-
-        // Eşleşme kontrolü
-        await _checkForMatch(currentUser.uid, likedUserId);
+      if (existingRequest.docs.isNotEmpty) {
+        print('Bu kullanıcıya zaten DM isteği gönderilmiş');
+        return;
       }
+
+      // Karşılıklı beğeni kontrolü
+      final otherUserDoc =
+          await _firestore.collection('users').doc(likedUserId).get();
+      if (otherUserDoc.exists) {
+        final otherUserData = otherUserDoc.data()!;
+        final otherUserPending =
+            List<String>.from(otherUserData['pendingMatches'] ?? []);
+
+        // Eğer karşı taraf da beni beğenmişse direkt eşleşme oluştur
+        if (otherUserPending.contains(currentUser.uid)) {
+          await _createMatch(currentUser.uid, likedUserId);
+          return;
+        }
+      }
+
+      // DM isteği gönder
+      await _firestore.collection('dm_requests').add({
+        'fromUserId': currentUser.uid,
+        'toUserId': likedUserId,
+        'checkinId': '', // Like için boş
+        'message': 'Seni beğendim 😊',
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+        'type': 'like', // Like tipi DM isteği
+      });
+
+      // Mevcut kullanıcının pending listesine ekle
+      await _firestore.collection('users').doc(currentUser.uid).update({
+        'pendingMatches': FieldValue.arrayUnion([likedUserId]),
+      });
+
+      // Beğenilen kullanıcının received listesine ekle
+      await _firestore.collection('users').doc(likedUserId).update({
+        'receivedMatches': FieldValue.arrayUnion([currentUser.uid]),
+      });
+
+      print('DM isteği gönderildi: ${currentUser.uid} -> $likedUserId');
     } catch (e) {
       print('Kullanıcı beğenirken hata: $e');
     }
@@ -278,31 +244,6 @@ class MatchService {
     }
   }
 
-  // Eşleşme kontrolü
-  Future<void> _checkForMatch(String user1Id, String user2Id) async {
-    try {
-      final user1Doc = await _firestore.collection('users').doc(user1Id).get();
-      final user2Doc = await _firestore.collection('users').doc(user2Id).get();
-
-      if (!user1Doc.exists || !user2Doc.exists) return;
-
-      final user1Data = user1Doc.data()!;
-      final user2Data = user2Doc.data()!;
-
-      final user1Pending = List<String>.from(user1Data['pendingMatches'] ?? []);
-      final user2Received =
-          List<String>.from(user2Data['receivedMatches'] ?? []);
-
-      // Karşılıklı beğeni kontrolü
-      if (user1Pending.contains(user2Id) && user2Received.contains(user1Id)) {
-        // Eşleşme oluştur
-        await _createMatch(user1Id, user2Id);
-      }
-    } catch (e) {
-      print('Eşleşme kontrolü sırasında hata: $e');
-    }
-  }
-
   // Eşleşme oluştur
   Future<void> _createMatch(String user1Id, String user2Id) async {
     try {
@@ -316,6 +257,19 @@ class MatchService {
         'receivedMatches': FieldValue.arrayRemove([user1Id]),
         'matchedUsers': FieldValue.arrayUnion([user1Id]),
       });
+
+      // DM isteklerini kabul et
+      await _firestore
+          .collection('dm_requests')
+          .where('fromUserId', whereIn: [user1Id, user2Id])
+          .where('toUserId', whereIn: [user1Id, user2Id])
+          .where('status', isEqualTo: 'pending')
+          .get()
+          .then((snapshot) {
+            for (var doc in snapshot.docs) {
+              doc.reference.update({'status': 'accepted'});
+            }
+          });
 
       // Chat oluştur
       await _createChat(user1Id, user2Id);
@@ -383,6 +337,19 @@ class MatchService {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return;
 
+      // DM isteklerini kabul et
+      await _firestore
+          .collection('dm_requests')
+          .where('fromUserId', isEqualTo: matchedUserId)
+          .where('toUserId', isEqualTo: currentUser.uid)
+          .where('status', isEqualTo: 'pending')
+          .get()
+          .then((snapshot) {
+        for (var doc in snapshot.docs) {
+          doc.reference.update({'status': 'accepted'});
+        }
+      });
+
       await _createMatch(currentUser.uid, matchedUserId);
     } catch (e) {
       print('Eşleşme kabul edilirken hata: $e');
@@ -394,6 +361,19 @@ class MatchService {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return;
+
+      // DM isteklerini reddet
+      await _firestore
+          .collection('dm_requests')
+          .where('fromUserId', isEqualTo: rejectedUserId)
+          .where('toUserId', isEqualTo: currentUser.uid)
+          .where('status', isEqualTo: 'pending')
+          .get()
+          .then((snapshot) {
+        for (var doc in snapshot.docs) {
+          doc.reference.update({'status': 'rejected'});
+        }
+      });
 
       // Reddedilen kullanıcıyı received listesinden çıkar
       await _firestore.collection('users').doc(currentUser.uid).update({
@@ -444,6 +424,20 @@ class MatchService {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return;
+
+      // Eşleşme kontrolü
+      final currentUserDoc =
+          await _firestore.collection('users').doc(currentUser.uid).get();
+      if (!currentUserDoc.exists) return;
+
+      final currentUserData = currentUserDoc.data()!;
+      final matchedUsers =
+          List<String>.from(currentUserData['matchedUsers'] ?? []);
+
+      if (!matchedUsers.contains(receiverId)) {
+        print('Bu kullanıcıya mesaj gönderilemez - eşleşme yok');
+        return;
+      }
 
       final messageData = {
         'senderId': currentUser.uid,

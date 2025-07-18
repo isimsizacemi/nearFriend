@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import '../services/email_service.dart';
 import '../utils/app_theme.dart';
+import 'register_flow_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -81,36 +82,26 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final email = _emailController.text.trim();
+      final password = _passwordController.text;
 
-      print('Kullanıcı oluşturuluyor...');
+      print('Register flow başlatılıyor...');
       print('Email: $email');
 
-      final userCredential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: _passwordController.text,
-      );
-
-      if (userCredential.user != null) {
-        print('Kullanıcı oluşturuldu!');
-        print('User ID: ${userCredential.user!.uid}');
-        print('Email: ${userCredential.user!.email}');
-        print('Email Verified: ${userCredential.user!.emailVerified}');
-
-        await _authService.createUserRecord(userCredential.user!);
-        _showSuccess('Hesap başarıyla oluşturuldu!');
+      // Yeni register flow ekranına yönlendir
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RegisterFlowScreen(
+              email: email,
+              password: password,
+            ),
+          ),
+        );
       }
     } catch (e) {
-      print('Kayıt hatası: $e');
-      String errorMessage = 'Kayıt başarısız';
-      if (e.toString().contains('email-already-in-use')) {
-        errorMessage = 'Bu email adresi zaten kullanımda.';
-      } else if (e.toString().contains('weak-password')) {
-        errorMessage = 'Şifre çok zayıf. En az 6 karakter kullanın.';
-      } else if (e.toString().contains('invalid-email')) {
-        errorMessage = 'Geçersiz email adresi.';
-      }
-      _showError(errorMessage);
+      print('Register flow başlatma hatası: $e');
+      _showError('Kayıt işlemi başlatılamadı');
     } finally {
       setState(() => _isLoading = false);
     }

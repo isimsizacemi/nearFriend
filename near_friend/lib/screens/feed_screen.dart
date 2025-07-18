@@ -8,7 +8,12 @@ import '../utils/app_theme.dart';
 import 'checkin_detail_screen.dart';
 
 class FeedScreen extends StatefulWidget {
-  const FeedScreen({super.key});
+  final bool useScaffold;
+
+  const FeedScreen({
+    super.key,
+    this.useScaffold = true,
+  });
 
   @override
   State<FeedScreen> createState() => FeedScreenState();
@@ -593,166 +598,172 @@ class FeedScreenState extends State<FeedScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor:
-          isDark ? AppTheme.iosDarkBackground : AppTheme.iosBackground,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // iOS Style Header
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? AppTheme.iosDarkSecondaryBackground
-                    : AppTheme.iosSecondaryBackground,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.iosBlue,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.location_on,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Yakındaki Paylaşımlar',
-                          style: AppTheme.iosFontMedium.copyWith(
-                            color: isDark
-                                ? AppTheme.iosDarkPrimaryText
-                                : AppTheme.iosPrimaryText,
-                          ),
-                        ),
-                        Text(
-                          '${_checkins.length} paylaşım bulundu',
-                          style: AppTheme.iosFontSmall.copyWith(
-                            color: isDark
-                                ? AppTheme.iosDarkSecondaryText
-                                : AppTheme.iosSecondaryText,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: refreshFeed,
-                    icon: Icon(
-                      Icons.refresh,
-                      color: AppTheme.iosBlue,
-                    ),
-                  ),
-                ],
+    final content = SafeArea(
+      child: Column(
+        children: [
+          // iOS Style Header
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? AppTheme.iosDarkSecondaryBackground
+                  : AppTheme.iosSecondaryBackground,
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
               ),
             ),
-
-            // Content
-            Expanded(
-              child: _isLoading
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? AppTheme.iosDarkSecondaryBackground
-                                  : AppTheme.iosSecondaryBackground,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Column(
-                              children: [
-                                CircularProgressIndicator(
-                                  color: AppTheme.iosBlue,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Yakındaki paylaşımlar yükleniyor...',
-                                  style: AppTheme.iosFont.copyWith(
-                                    color: isDark
-                                        ? AppTheme.iosDarkSecondaryText
-                                        : AppTheme.iosSecondaryText,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.iosBlue,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.location_on,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Yakındaki Paylaşımlar',
+                        style: AppTheme.iosFontMedium.copyWith(
+                          color: isDark
+                              ? AppTheme.iosDarkPrimaryText
+                              : AppTheme.iosPrimaryText,
+                        ),
                       ),
-                    )
-                  : _checkins.isEmpty
-                      ? Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(32),
-                            margin: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? AppTheme.iosDarkSecondaryBackground
-                                  : AppTheme.iosSecondaryBackground,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.location_off,
-                                  size: 64,
+                      Text(
+                        '${_checkins.length} paylaşım bulundu',
+                        style: AppTheme.iosFontSmall.copyWith(
+                          color: isDark
+                              ? AppTheme.iosDarkSecondaryText
+                              : AppTheme.iosSecondaryText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: refreshFeed,
+                  icon: Icon(
+                    Icons.refresh,
+                    color: AppTheme.iosBlue,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Content
+          Expanded(
+            child: _isLoading
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? AppTheme.iosDarkSecondaryBackground
+                                : AppTheme.iosSecondaryBackground,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Column(
+                            children: [
+                              CircularProgressIndicator(
+                                color: AppTheme.iosBlue,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Yakındaki paylaşımlar yükleniyor...',
+                                style: AppTheme.iosFont.copyWith(
                                   color: isDark
                                       ? AppTheme.iosDarkSecondaryText
                                       : AppTheme.iosSecondaryText,
                                 ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Yakınında paylaşım yok',
-                                  style: AppTheme.iosFontMedium.copyWith(
-                                    color: isDark
-                                        ? AppTheme.iosDarkPrimaryText
-                                        : AppTheme.iosPrimaryText,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'İlk paylaşımı sen yap!',
-                                  style: AppTheme.iosFontSmall.copyWith(
-                                    color: isDark
-                                        ? AppTheme.iosDarkSecondaryText
-                                        : AppTheme.iosSecondaryText,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: () async => refreshFeed(),
-                          color: AppTheme.iosBlue,
-                          child: ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: _checkins.length,
-                            itemBuilder: (context, index) {
-                              return _buildCheckinCard(_checkins[index]);
-                            },
+                              ),
+                            ],
                           ),
                         ),
-            ),
-          ],
-        ),
+                      ],
+                    ),
+                  )
+                : _checkins.isEmpty
+                    ? Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(32),
+                          margin: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? AppTheme.iosDarkSecondaryBackground
+                                : AppTheme.iosSecondaryBackground,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.location_off,
+                                size: 64,
+                                color: isDark
+                                    ? AppTheme.iosDarkSecondaryText
+                                    : AppTheme.iosSecondaryText,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Yakınında paylaşım yok',
+                                style: AppTheme.iosFontMedium.copyWith(
+                                  color: isDark
+                                      ? AppTheme.iosDarkPrimaryText
+                                      : AppTheme.iosPrimaryText,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'İlk paylaşımı sen yap!',
+                                style: AppTheme.iosFontSmall.copyWith(
+                                  color: isDark
+                                      ? AppTheme.iosDarkSecondaryText
+                                      : AppTheme.iosSecondaryText,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () async => refreshFeed(),
+                        color: AppTheme.iosBlue,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _checkins.length,
+                          itemBuilder: (context, index) {
+                            return _buildCheckinCard(_checkins[index]);
+                          },
+                        ),
+                      ),
+          ),
+        ],
       ),
     );
+
+    if (widget.useScaffold) {
+      return Scaffold(
+        backgroundColor:
+            isDark ? AppTheme.iosDarkBackground : AppTheme.iosBackground,
+        body: content,
+      );
+    } else {
+      return content;
+    }
   }
 }
