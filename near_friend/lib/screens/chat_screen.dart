@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
@@ -7,6 +8,17 @@ import '../models/dm_request_model.dart';
 import '../services/match_service.dart';
 import '../utils/app_theme.dart';
 import 'checkin_detail_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+
+class FakeDoc implements DocumentSnapshot {
+  final Map<String, dynamic> _data;
+  FakeDoc(this._data);
+  @override
+  Map<String, dynamic>? data([options]) => _data;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -25,9 +37,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   List<Map<String, dynamic>> _chats = [];
   bool _isLoading = true;
 
+  static const String _cacheChatsKey = 'chat_chats_cache';
+  static const String _cacheDMKey = 'chat_dm_cache';
+  static const String _cacheTimeKey = 'chat_cache_time';
+  static const Duration _cacheDuration = Duration(minutes: 5);
+
   @override
   void initState() {
     super.initState();
+    _loadFromCache();
     _tabController = TabController(length: 2, vsync: this);
     _loadData();
   }
@@ -36,6 +54,41 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadFromCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheTime = prefs.getInt(_cacheTimeKey);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (cacheTime != null && now - cacheTime < _cacheDuration.inMilliseconds) {
+      final chatsCache = prefs.getString(_cacheChatsKey);
+      if (chatsCache != null) {
+        final List<dynamic> jsonList = json.decode(chatsCache);
+        setState(() {
+          _chats = List<Map<String, dynamic>>.from(jsonList);
+        });
+      }
+      final dmCache = prefs.getString(_cacheDMKey);
+      if (dmCache != null) {
+        final List<dynamic> jsonList = json.decode(dmCache);
+        setState(() {
+          _dmRequests = jsonList
+              .map((e) => DMRequestModel.fromFirestore(FakeDoc(e)))
+              .toList();
+        });
+      }
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _saveToCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_cacheChatsKey, json.encode(_chats));
+    final jsonList = _dmRequests.map((d) => d.toFirestore()).toList();
+    await prefs.setString(_cacheDMKey, json.encode(jsonList));
+    await prefs.setInt(_cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
   }
 
   Future<void> _loadData() async {
@@ -55,6 +108,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           _chats = chats;
           _isLoading = false;
         });
+        await _saveToCache();
       }
     } catch (e) {
       print('Veriler yüklenirken hata: $e');
@@ -281,40 +335,48 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       body: SafeArea(
         child: Column(
           children: [
-            // iOS Style Header
+            // iOS Style Header - Kompakt
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: isDark
                     ? AppTheme.iosDarkSecondaryBackground
                     : AppTheme.iosSecondaryBackground,
                 borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: AppTheme.iosPurple,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                     child: const Icon(
-                      Icons.chat_bubble,
+                      CupertinoIcons.chat_bubble_2_fill,
                       color: Colors.white,
-                      size: 24,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Sohbet',
-                          style: AppTheme.iosFontMedium.copyWith(
+                          style: AppTheme.iosFontSmall.copyWith(
+                            fontWeight: FontWeight.w600,
                             color: isDark
                                 ? AppTheme.iosDarkPrimaryText
                                 : AppTheme.iosPrimaryText,
@@ -322,7 +384,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                         ),
                         Text(
                           '${_chats.length} aktif sohbet',
-                          style: AppTheme.iosFontSmall.copyWith(
+                          style: AppTheme.iosFontCaption.copyWith(
                             color: isDark
                                 ? AppTheme.iosDarkSecondaryText
                                 : AppTheme.iosSecondaryText,
@@ -331,43 +393,107 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                       ],
                     ),
                   ),
-                  IconButton(
+                  CupertinoButton(
+                    padding: const EdgeInsets.all(8),
                     onPressed: _loadData,
-                    icon: Icon(
-                      Icons.refresh,
+                    child: Icon(
+                      CupertinoIcons.refresh,
                       color: AppTheme.iosPurple,
+                      size: 20,
                     ),
                   ),
                 ],
               ),
             ),
 
-            // Tab Bar
+            // Tab Bar - Daha kompakt ve modern
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: isDark
                     ? AppTheme.iosDarkTertiaryBackground
                     : AppTheme.iosTertiaryBackground,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark
+                      ? AppTheme.iosDarkSecondaryText.withOpacity(0.1)
+                      : AppTheme.iosSecondaryText.withOpacity(0.1),
+                  width: 1,
+                ),
               ),
               child: TabBar(
                 controller: _tabController,
                 indicator: BoxDecoration(
                   color: AppTheme.iosPurple,
                   borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.iosPurple.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
+                indicatorSize: TabBarIndicatorSize.tab,
                 labelColor: Colors.white,
                 unselectedLabelColor: isDark
                     ? AppTheme.iosDarkSecondaryText
                     : AppTheme.iosSecondaryText,
-                labelStyle: AppTheme.iosFontBold,
-                unselectedLabelStyle: AppTheme.iosFont,
+                labelStyle: AppTheme.iosFontSmall.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+                unselectedLabelStyle: AppTheme.iosFontSmall.copyWith(
+                  fontSize: 13,
+                ),
+                dividerColor: Colors.transparent,
                 tabs: [
-                  Tab(text: 'DM\'ler'),
                   Tab(
-                    text:
-                        'İstekler${_dmRequests.isNotEmpty ? ' (${_dmRequests.length})' : ''}',
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          CupertinoIcons.chat_bubble,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text('DM\'ler'),
+                      ],
+                    ),
+                  ),
+                  Tab(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          CupertinoIcons.person_add,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text('İstekler'),
+                        if (_dmRequests.isNotEmpty) ...[
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppTheme.iosPink,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${_dmRequests.length}',
+                              style: AppTheme.iosFontCaption.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -418,9 +544,66 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildSkeletonCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppTheme.iosDarkSecondaryBackground
+            : AppTheme.iosSecondaryBackground,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? AppTheme.iosDarkTertiaryBackground
+                  : AppTheme.iosTertiaryBackground,
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 120,
+                  height: 14,
+                  color: isDark
+                      ? AppTheme.iosDarkTertiaryBackground
+                      : AppTheme.iosTertiaryBackground,
+                  margin: const EdgeInsets.only(bottom: 8),
+                ),
+                Container(
+                  width: double.infinity,
+                  height: 12,
+                  color: isDark
+                      ? AppTheme.iosDarkTertiaryBackground
+                      : AppTheme.iosTertiaryBackground,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDMsTab() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
+    if (_isLoading) {
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: 6,
+        itemBuilder: (context, index) => _buildSkeletonCard(),
+      );
+    }
     if (_chats.isEmpty) {
       return Center(
         child: Container(
@@ -436,7 +619,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.chat_bubble_outline,
+                CupertinoIcons.chat_bubble,
                 size: 64,
                 color: isDark
                     ? AppTheme.iosDarkSecondaryText
@@ -482,116 +665,189 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   Widget _buildRequestsTab() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
+    if (_isLoading) {
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: 6,
+        itemBuilder: (context, index) => _buildSkeletonCard(),
+      );
+    }
+    if (_dmRequests.isEmpty) {
+      return Center(
+        child: Container(
+          padding: const EdgeInsets.all(32),
+          margin: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppTheme.iosDarkSecondaryBackground
+                : AppTheme.iosSecondaryBackground,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                CupertinoIcons.mail,
+                size: 64,
+                color: isDark
+                    ? AppTheme.iosDarkSecondaryText
+                    : AppTheme.iosSecondaryText,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Henüz DM isteği yok',
+                style: AppTheme.iosFontMedium.copyWith(
+                  color: isDark
+                      ? AppTheme.iosDarkPrimaryText
+                      : AppTheme.iosPrimaryText,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Yeni bir eşleşme veya DM isteği bekle! ',
+                style: AppTheme.iosFontSmall.copyWith(
+                  color: isDark
+                      ? AppTheme.iosDarkSecondaryText
+                      : AppTheme.iosSecondaryText,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return RefreshIndicator(
       onRefresh: _loadData,
       color: AppTheme.iosPurple,
-      child: ListView(
+      child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        children: [
-          // Eşleşme istekleri
-          if (_receivedMatches.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.iosPink.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                'Eşleşme İstekleri',
-                style: AppTheme.iosFontMedium.copyWith(
-                  color: AppTheme.iosPink,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            ..._receivedMatches.map((user) => _buildRequestTile(user)),
-            const SizedBox(height: 20),
-          ],
-
-          // DM istekleri
-          if (_dmRequests.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.iosBlue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                'DM İstekleri',
-                style: AppTheme.iosFontMedium.copyWith(
-                  color: AppTheme.iosBlue,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            ..._dmRequests.map((request) => _buildDMRequestTile(request)),
-          ],
-
-          // Boş durum
-          if (_receivedMatches.isEmpty && _dmRequests.isEmpty)
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(32),
-                margin: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppTheme.iosDarkSecondaryBackground
-                      : AppTheme.iosSecondaryBackground,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.person_add_outlined,
-                      size: 64,
-                      color: isDark
-                          ? AppTheme.iosDarkSecondaryText
-                          : AppTheme.iosSecondaryText,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Gelen istek yok',
-                      style: AppTheme.iosFontMedium.copyWith(
-                        color: isDark
-                            ? AppTheme.iosDarkPrimaryText
-                            : AppTheme.iosPrimaryText,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Seni beğenen kişiler burada görünecek',
-                      style: AppTheme.iosFontSmall.copyWith(
-                        color: isDark
-                            ? AppTheme.iosDarkSecondaryText
-                            : AppTheme.iosSecondaryText,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
+        itemCount: _dmRequests.length,
+        itemBuilder: (context, index) {
+          final request = _dmRequests[index];
+          return _buildDMRequestTile(request);
+        },
       ),
     );
   }
 
   Widget _buildChatTile(UserModel user, {required bool isMatched}) {
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundImage:
-            user.photoURL != null ? NetworkImage(user.photoURL!) : null,
-        child: user.photoURL == null ? const Icon(Icons.person) : null,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppTheme.iosDarkSecondaryBackground
+            : AppTheme.iosSecondaryBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? AppTheme.iosDarkSecondaryText.withOpacity(0.05)
+              : AppTheme.iosSecondaryText.withOpacity(0.05),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      title: Text(user.displayName),
-      subtitle: Text('${user.university} - ${user.department}'),
-      trailing: isMatched
-          ? IconButton(
-              icon: const Icon(Icons.chat),
-              onPressed: () {
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: AppTheme.iosPurple.withOpacity(0.2),
+              width: 2,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: user.photoURL != null
+                ? Image.network(
+                    user.photoURL!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: isDark
+                            ? AppTheme.iosDarkTertiaryBackground
+                            : AppTheme.iosTertiaryBackground,
+                        child: Icon(
+                          CupertinoIcons.person_fill,
+                          size: 24,
+                          color: isDark
+                              ? AppTheme.iosDarkSecondaryText
+                              : AppTheme.iosSecondaryText,
+                        ),
+                      );
+                    },
+                  )
+                : Container(
+                    color: isDark
+                        ? AppTheme.iosDarkTertiaryBackground
+                        : AppTheme.iosTertiaryBackground,
+                    child: Icon(
+                      CupertinoIcons.person_fill,
+                      size: 24,
+                      color: isDark
+                          ? AppTheme.iosDarkSecondaryText
+                          : AppTheme.iosSecondaryText,
+                    ),
+                  ),
+          ),
+        ),
+        title: Text(
+          user.displayName,
+          style: AppTheme.iosFontSmall.copyWith(
+            fontWeight: FontWeight.w600,
+            color:
+                isDark ? AppTheme.iosDarkPrimaryText : AppTheme.iosPrimaryText,
+          ),
+        ),
+        subtitle: Text(
+          '${user.university} - ${user.department}',
+          style: AppTheme.iosFontCaption.copyWith(
+            color: isDark
+                ? AppTheme.iosDarkSecondaryText
+                : AppTheme.iosSecondaryText,
+          ),
+        ),
+        trailing: isMatched
+            ? CupertinoButton(
+                padding: const EdgeInsets.all(8),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ChatDetailScreen(
+                        otherUserId: user.id,
+                        otherUserName: user.displayName,
+                        otherUserPhoto: user.photoURL,
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.iosPurple,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    CupertinoIcons.chat_bubble_2_fill,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              )
+            : null,
+        onTap: isMatched
+            ? () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -602,23 +858,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     ),
                   ),
                 );
-              },
-            )
-          : null,
-      onTap: isMatched
-          ? () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ChatDetailScreen(
-                    otherUserId: user.id,
-                    otherUserName: user.displayName,
-                    otherUserPhoto: user.photoURL,
-                  ),
-                ),
-              );
-            }
-          : null,
+              }
+            : null,
+      ),
     );
   }
 
@@ -752,62 +994,52 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton(
+                  child: CupertinoButton(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    color: AppTheme.iosGreen,
+                    borderRadius: BorderRadius.circular(12),
                     onPressed: () => _acceptMatch(user),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.iosGreen,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.check,
-                          size: 18,
+                          CupertinoIcons.check_mark,
+                          size: 16,
                           color: Colors.white,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Text(
                           'Kabul Et',
-                          style: AppTheme.iosFontMedium.copyWith(
+                          style: AppTheme.iosFontSmall.copyWith(
                             color: Colors.white,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: ElevatedButton(
+                  child: CupertinoButton(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    color: AppTheme.iosRed,
+                    borderRadius: BorderRadius.circular(12),
                     onPressed: () => _rejectMatch(user),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.iosRed,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.close,
-                          size: 18,
+                          CupertinoIcons.xmark,
+                          size: 16,
                           color: Colors.white,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Text(
                           'Reddet',
-                          style: AppTheme.iosFontMedium.copyWith(
+                          style: AppTheme.iosFontSmall.copyWith(
                             color: Colors.white,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -1010,62 +1242,52 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 Row(
                   children: [
                     Expanded(
-                      child: ElevatedButton(
+                      child: CupertinoButton(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        color: AppTheme.iosGreen,
+                        borderRadius: BorderRadius.circular(12),
                         onPressed: () => _acceptDMRequest(request),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.iosGreen,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.check,
-                              size: 18,
+                              CupertinoIcons.check_mark,
+                              size: 16,
                               color: Colors.white,
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             Text(
                               'Kabul Et',
-                              style: AppTheme.iosFontMedium.copyWith(
+                              style: AppTheme.iosFontSmall.copyWith(
                                 color: Colors.white,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: ElevatedButton(
+                      child: CupertinoButton(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        color: AppTheme.iosRed,
+                        borderRadius: BorderRadius.circular(12),
                         onPressed: () => _rejectDMRequest(request),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.iosRed,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.close,
-                              size: 18,
+                              CupertinoIcons.xmark,
+                              size: 16,
                               color: Colors.white,
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             Text(
                               'Reddet',
-                              style: AppTheme.iosFontMedium.copyWith(
+                              style: AppTheme.iosFontSmall.copyWith(
                                 color: Colors.white,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],

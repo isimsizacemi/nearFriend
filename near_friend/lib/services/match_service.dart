@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/user_model.dart';
 import '../models/message_model.dart';
+import 'package:geoflutterfire2/geoflutterfire2.dart';
 
 class MatchService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -25,143 +26,95 @@ class MatchService {
       if (currentPosition != null) {
         currentUserLocation =
             GeoPoint(currentPosition.latitude, currentPosition.longitude);
-        print(
-            'Güncel konum kullanılıyor: ${currentPosition.latitude}, ${currentPosition.longitude}');
       } else {
-        // Mevcut kullanıcının verilerini al
         final currentUserDoc =
             await _firestore.collection('users').doc(currentUser.uid).get();
-
         if (!currentUserDoc.exists) return [];
-
         final currentUserData = currentUserDoc.data()!;
         currentUserLocation = currentUserData['currentLocation'] as GeoPoint?;
-
-        if (currentUserLocation == null) {
-          print('Mevcut kullanıcının konumu yok!');
-          return [];
-        }
-
-        print(
-            'Firestore\'dan alınan konum: ${currentUserLocation.latitude}, ${currentUserLocation.longitude}');
+        if (currentUserLocation == null) return [];
       }
 
-      // Mevcut kullanıcının diğer verilerini al
+      final now = DateTime.now();
+      final yesterday = now.subtract(const Duration(hours: 24));
+      // Diğer filtreler
+      Query usersQuery = _firestore
+          .collection('users')
+          .where('hasCreatedProfile', isEqualTo: true)
+          .where('isActive', isEqualTo: true)
+          .where('lastActiveAt',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(yesterday));
+      if (minAge > 18 || maxAge < 50) {
+        usersQuery = usersQuery.where('age', isGreaterThanOrEqualTo: minAge);
+      }
+      if (preferredGender != null) {
+        usersQuery = usersQuery.where('gender', isEqualTo: preferredGender);
+      }
+
+      // Eğer maxDistance çok büyükse (100km+), konum filtresi olmadan devam
+      if (maxDistance >= 100000) {
+        final snapshot = await usersQuery.get();
+        var allUsers =
+            snapshot.docs.map((doc) => UserModel.fromFirestore(doc)).toList();
+        allUsers =
+            allUsers.where((user) => user.id != currentUser.uid).toList();
+        // Blocked, matched, pending kullanıcıları filtrele
+        final currentUserDoc =
+            await _firestore.collection('users').doc(currentUser.uid).get();
+        final currentUserData = currentUserDoc.data()!;
+        final currentUserBlocked =
+            List<String>.from(currentUserData['blockedUsers'] ?? []);
+        final currentUserMatched =
+            List<String>.from(currentUserData['matchedUsers'] ?? []);
+        final currentUserPending =
+            List<String>.from(currentUserData['pendingMatches'] ?? []);
+        allUsers = allUsers
+            .where((user) =>
+                !currentUserBlocked.contains(user.id) &&
+                !currentUserMatched.contains(user.id) &&
+                !currentUserPending.contains(user.id))
+            .toList();
+        return allUsers;
+      }
+
+      // GeoFlutterFire ile konum bazlı sorgu
+      final geo = GeoFlutterFire();
+      final center = geo.point(
+        latitude: currentUserLocation.latitude,
+        longitude: currentUserLocation.longitude,
+      );
+      final stream =
+          geo.collection(collectionRef: _firestore.collection('users')).within(
+                center: center,
+                radius: maxDistance / 1000, // metreyi km'ye çevir
+                field: 'location',
+                strictMode: true,
+              );
+      final snapshot = await stream.first;
+      var allUsers =
+          snapshot.map((doc) => UserModel.fromFirestore(doc)).toList();
+      allUsers = allUsers.where((user) => user.id != currentUser.uid).toList();
+      // Son 24 saat aktif olanları filtrele (GeoFlutterFire ile sorguda Firestore filtre uygulanamadığı için burada yapıyoruz)
+      allUsers = allUsers
+          .where((user) => user.lastActiveAt.isAfter(yesterday))
+          .toList();
+      // Blocked, matched, pending kullanıcıları filtrele
       final currentUserDoc =
           await _firestore.collection('users').doc(currentUser.uid).get();
-
-      if (!currentUserDoc.exists) return [];
-
       final currentUserData = currentUserDoc.data()!;
-      final currentUserInterests =
-          List<String>.from(currentUserData['interests'] ?? []);
       final currentUserBlocked =
           List<String>.from(currentUserData['blockedUsers'] ?? []);
       final currentUserMatched =
           List<String>.from(currentUserData['matchedUsers'] ?? []);
       final currentUserPending =
           List<String>.from(currentUserData['pendingMatches'] ?? []);
-
-      // Firestore'dan daha verimli sorgu
-      Query usersQuery = _firestore
-          .collection('users')
-          .where('hasCreatedProfile', isEqualTo: true)
-          .where('isActive', isEqualTo: true);
-
-      // Yaş filtresi varsa ekle
-      if (minAge > 18 || maxAge < 50) {
-        usersQuery = usersQuery.where('age', isGreaterThanOrEqualTo: minAge);
-      }
-
-      // Cinsiyet filtresi varsa ekle
-      if (preferredGender != null) {
-        usersQuery = usersQuery.where('gender', isEqualTo: preferredGender);
-      }
-
-      final snapshot = await usersQuery.get();
-      print('Firestore sorgusu sonucu: ${snapshot.docs.length} kullanıcı');
-
-      // Kullanıcıları filtrele
-      var allUsers =
-          snapshot.docs.map((doc) => UserModel.fromFirestore(doc)).toList();
-
-      // Kendi kullanıcısını filtrele
-      allUsers = allUsers.where((user) => user.id != currentUser.uid).toList();
-
-      // Blocked, matched, pending kullanıcıları filtrele
       allUsers = allUsers
           .where((user) =>
               !currentUserBlocked.contains(user.id) &&
               !currentUserMatched.contains(user.id) &&
               !currentUserPending.contains(user.id))
           .toList();
-
-      // Yaş filtresi (eğer Firestore'da yapılmadıysa)
-      if (minAge <= 18 && maxAge >= 50) {
-        allUsers = allUsers
-            .where((user) => user.age >= minAge && user.age <= maxAge)
-            .toList();
-      }
-
-      // Konum bazlı filtreleme
-      final nearbyUsers = allUsers.where((user) {
-        if (user.currentLocation == null || currentUserLocation == null) {
-          return false;
-        }
-
-        // Eğer maxDistance çok büyükse (100km+) mesafe sınırı yok
-        if (maxDistance >= 100000) {
-          return true;
-        }
-
-        final distance = Geolocator.distanceBetween(
-          currentUserLocation.latitude,
-          currentUserLocation.longitude,
-          user.currentLocation!.latitude,
-          user.currentLocation!.longitude,
-        );
-
-        return distance <= maxDistance;
-      }).toList();
-
-      // Yakından uzağa sıralama
-      if (currentUserLocation != null) {
-        nearbyUsers.sort((a, b) {
-          if (a.currentLocation == null || b.currentLocation == null) return 0;
-
-          final aDistance = Geolocator.distanceBetween(
-            currentUserLocation!.latitude,
-            currentUserLocation!.longitude,
-            a.currentLocation!.latitude,
-            a.currentLocation!.longitude,
-          );
-          final bDistance = Geolocator.distanceBetween(
-            currentUserLocation!.latitude,
-            currentUserLocation!.longitude,
-            b.currentLocation!.latitude,
-            b.currentLocation!.longitude,
-          );
-
-          // Önce mesafeye göre sırala (yakından uzağa)
-          if ((aDistance - bDistance).abs() > 500) {
-            return aDistance.compareTo(bDistance);
-          }
-
-          // Mesafe yakınsa ilgi alanlarına göre sırala
-          final aCommonInterests = a.interests
-              .where((interest) => currentUserInterests.contains(interest))
-              .length;
-          final bCommonInterests = b.interests
-              .where((interest) => currentUserInterests.contains(interest))
-              .length;
-
-          return bCommonInterests.compareTo(aCommonInterests);
-        });
-      }
-
-      print('Yakındaki kullanıcı sayısı: ${nearbyUsers.length}');
-
-      return nearbyUsers;
+      return allUsers;
     } catch (e) {
       print('Yakındaki kullanıcılar alınırken hata: $e');
       return [];

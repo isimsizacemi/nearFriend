@@ -6,7 +6,7 @@ class CheckinModel {
   final String userDisplayName;
   final String? userPhotoURL;
   final String message;
-  final GeoPoint location;
+  final Map<String, dynamic> location;
   final String locationName;
   final DateTime createdAt;
   final List<String> likes;
@@ -30,23 +30,121 @@ class CheckinModel {
   });
 
   factory CheckinModel.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    return CheckinModel(
-      id: doc.id,
-      userId: data['userId'] ?? '',
-      userDisplayName: data['userDisplayName'] ?? '',
-      userPhotoURL: data['userPhotoURL'],
-      message: data['message'] ?? '',
-      location: data['location'] ?? const GeoPoint(0, 0),
-      locationName: data['locationName'] ?? '',
-      createdAt: data['createdAt'] != null
-          ? (data['createdAt'] as Timestamp).toDate()
-          : DateTime.now(),
-      likes: List<String>.from(data['likes'] ?? []),
-      comments: List<String>.from(data['comments'] ?? []),
-      privacySettings: data['privacySettings'],
-      isActive: data['isActive'] ?? true,
-    );
+    try {
+      Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+      print('=== CHECKIN MODEL DEBUG ===');
+      print('Doküman ID: ${doc.id}');
+      print('Ham veri: $data');
+
+      // Location verisini güvenli şekilde işle
+      Map<String, dynamic> locationData = {};
+      try {
+        if (data['location'] != null) {
+          if (data['location'] is Map<String, dynamic>) {
+            locationData = Map<String, dynamic>.from(data['location']);
+
+            // GeoPoint kontrolü
+            if (locationData['geopoint'] is GeoPoint) {
+              // Zaten GeoPoint, bir şey yapmaya gerek yok
+            } else if (locationData['geopoint'] is Map) {
+              // GeoPoint map olarak gelmiş, GeoPoint'e çevir
+              var geoMap = locationData['geopoint'] as Map;
+              locationData['geopoint'] = GeoPoint(
+                (geoMap['latitude'] as num).toDouble(),
+                (geoMap['longitude'] as num).toDouble(),
+              );
+            }
+          } else if (data['location'] is GeoPoint) {
+            final geoPoint = data['location'] as GeoPoint;
+            locationData = {
+              'geohash': '',
+              'geopoint': geoPoint,
+            };
+          }
+        }
+
+        // Varsayılan değer
+        if (locationData.isEmpty || locationData['geopoint'] == null) {
+          locationData = {
+            'geohash': '',
+            'geopoint': const GeoPoint(0, 0),
+          };
+        }
+      } catch (e) {
+        print('Location verisi işlenirken hata: $e');
+        print('Problemli location verisi: ${data['location']}');
+        locationData = {
+          'geohash': '',
+          'geopoint': const GeoPoint(0, 0),
+        };
+      }
+
+      // createdAt kontrolü
+      DateTime createdAtDate;
+      try {
+        if (data['createdAt'] is Timestamp) {
+          createdAtDate = (data['createdAt'] as Timestamp).toDate();
+        } else if (data['createdAt'] is Map) {
+          // Timestamp map olarak gelmiş olabilir
+          var timestampMap = data['createdAt'] as Map;
+          createdAtDate = DateTime.fromMillisecondsSinceEpoch(
+            ((timestampMap['seconds'] as num) * 1000 +
+                    (timestampMap['nanoseconds'] as num) / 1000000)
+                .round(),
+          );
+        } else {
+          createdAtDate = DateTime.now();
+        }
+      } catch (e) {
+        print('createdAt dönüştürme hatası: $e');
+        createdAtDate = DateTime.now();
+      }
+
+      var model = CheckinModel(
+        id: doc.id,
+        userId: data['userId'] ?? '',
+        userDisplayName: data['userDisplayName'] ?? '',
+        userPhotoURL: data['userPhotoURL'],
+        message: data['message'] ?? '',
+        location: locationData,
+        locationName: data['locationName'] ?? '',
+        createdAt: createdAtDate,
+        likes: List<String>.from(data['likes'] ?? []),
+        comments: List<String>.from(data['comments'] ?? []),
+        privacySettings: data['privacySettings'],
+        isActive: data['isActive'] ?? true,
+      );
+
+      print('Dönüştürülen model:');
+      print('- ID: ${model.id}');
+      print('- Kullanıcı: ${model.userDisplayName}');
+      print('- Mesaj: ${model.message}');
+      print('- Konum: ${model.locationName}');
+      print('- Tarih: ${model.createdAt}');
+      print('========================');
+
+      return model;
+    } catch (e) {
+      print('CheckinModel.fromFirestore hatası: $e');
+      print('Hatalı doküman ID: ${doc.id}');
+      print('Ham veri: ${doc.data()}');
+
+      // Hata durumunda varsayılan değerlerle döndür
+      return CheckinModel(
+        id: doc.id,
+        userId: '',
+        userDisplayName: '',
+        userPhotoURL: null,
+        message: '',
+        location: {'geohash': '', 'geopoint': const GeoPoint(0, 0)},
+        locationName: '',
+        createdAt: DateTime.now(),
+        likes: [],
+        comments: [],
+        privacySettings: null,
+        isActive: true,
+      );
+    }
   }
 
   Map<String, dynamic> toFirestore() {
@@ -65,13 +163,21 @@ class CheckinModel {
     };
   }
 
+  GeoPoint get geoPoint {
+    if (location['geopoint'] is GeoPoint) {
+      return location['geopoint'] as GeoPoint;
+    }
+    // Varsayılan değer
+    return const GeoPoint(0, 0);
+  }
+
   CheckinModel copyWith({
     String? id,
     String? userId,
     String? userDisplayName,
     String? userPhotoURL,
     String? message,
-    GeoPoint? location,
+    Map<String, dynamic>? location,
     String? locationName,
     DateTime? createdAt,
     List<String>? likes,

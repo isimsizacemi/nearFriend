@@ -1,0 +1,202 @@
+[
+    {
+        "id": 1,
+        "question": "Türk bayrağındaki ay ve yıldızın anlamı nedir?",
+        "options": [
+            "Bağımsızlık ve özgürlük",
+            "Barış ve sevgi",
+            "Güç ve cesaret",
+            "Birlik ve beraberlik"
+        ]
+    },
+    {
+        "id": 2,
+        "question": "Türk kahvesi hangi UNESCO listesinde yer alır?",
+        "options": [
+            "Somut Olmayan Kültürel Miras",
+            "Dünya Mirası",
+            "Bellek Listesi",
+            "Tehlike Altındaki Miras"
+        ]
+    },
+    {
+        "id": 3,
+        "question": "Türk milletinin en önemli değerlerinden biri nedir?",
+        "options": [
+            "Misafirperverlik",
+            "Bireysellik",
+            "Yalnızlık",
+            "Sessizlik"
+        ]
+    },
+    {
+        "id": 4,
+        "question": "Hangi yemek Türk mutfağının simgesi sayılır?",
+        "options": [
+            "Döner",
+            "Pizza",
+            "Sushi",
+            "Hamburger"
+        ]
+    },
+    {
+        "id": 5,
+        "question": "Türk aile yapısının temel özelliği nedir?",
+        "options": [
+            "Güçlü bağlar",
+            "Bireysellik",
+            "Mesafe",
+            "Yabancılaşma"
+        ]
+    },
+    {
+        "id": 6,
+        "question": "Türk tarihinde 'Gazi' unvanı ne anlama gelir?",
+        "options": [
+            "Savaş kahramanı",
+            "Öğretmen",
+            "Doktor",
+            "Mühendis"
+        ]
+    },
+    {
+        "id": 7,
+        "question": "Hangi gelenek Türk kültüründe önemli bir yere sahiptir?",
+        "options": [
+            "Büyüklere saygı",
+            "Küçükleri hor görmek",
+            "Yaşlıları unutmak",
+            "Aile bağlarını koparmak"
+        ]
+    },
+    {
+        "id": 8,
+        "question": "Türk milletinin en büyük özelliklerinden biri nedir?",
+        "options": [
+            "Vatan sevgisi",
+            "Bencilik",
+            "Yabancı hayranlığı",
+            "Kültürsüzlük"
+        ]
+    },
+    {
+        "id": 9,
+        "question": "Hangi değer Türk aile yapısında önemlidir?",
+        "options": [
+            "Birlik ve beraberlik",
+            "Ayrılık",
+            "Çatışma",
+            "Yalnızlık"
+        ]
+    },
+    {
+        "id": 10,
+        "question": "Türk kahvesi hangi özelliğiyle ünlüdür?",
+        "options": [
+            "Fal bakma geleneği",
+            "Hızlı içilmesi",
+            "Soğuk servis",
+            "Şekerli olması"
+        ]
+    },
+    {
+        "id": 11,
+        "question": "Türk milletinin en önemli bayramı hangisidir?",
+        "options": [
+            "Cumhuriyet Bayramı",
+            "Yılbaşı",
+            "Sevgililer Günü",
+            "Halloween"
+        ]
+    },
+    {
+        "id": 12,
+        "question": "Hangi değer Türk kültüründe 'altın kural' sayılır?",
+        "options": [
+            "Doğruluk ve dürüstlük",
+            "Yalan söylemek",
+            "Hile yapmak",
+            "Aldatmak"
+        ]
+    },
+    {
+        "id": 13,
+        "question": "Türk mutfağının en önemli özelliği nedir?",
+        "options": [
+            "Çeşitlilik ve zenginlik",
+            "Tekdüzelik",
+            "Yabancı mutfaklar",
+            "Hazır yemekler"
+        ]
+    },
+    {
+        "id": 14,
+        "question": "Türk milletinin en büyük gücü nedir?",
+        "options": [
+            "Birlik ve beraberlik",
+            "Ayrılık",
+            "Çatışma",
+            "Yabancılaşma"
+        ]
+    },
+    {
+        "id": 15,
+        "question": "Hangi gelenek Türk aile yapısında önemlidir?",
+        "options": [
+            "Büyük aile kavramı",
+            "Küçük aile",
+            "Yalnız yaşamak",
+            "Aile bağlarını koparmak"
+        ]
+    },
+    {
+        "id": 16,
+        "question": "Türk milletinin en önemli değerlerinden biri nedir?",
+        "options": [
+            "Yardımlaşma",
+            "Bencilik",
+            "Yalnızlık",
+            "Sosyal mesafe"
+        ]
+    },
+    {
+        "id": 17,
+        "question": "Hangi özellik Türk kültüründe önemli bir yere sahiptir?",
+        "options": [
+            "Misafirperverlik",
+            "Yabancı düşmanlığı",
+            "Kapalı toplum",
+            "İzolasyon"
+        ]
+    },
+    {
+        "id": 18,
+        "question": "Türk milletinin en büyük özelliklerinden biri nedir?",
+        "options": [
+            "Cesaret ve kahramanlık",
+            "Korkaklık",
+            "Pasiflik",
+            "Çekingenlik"
+        ]
+    },
+    {
+        "id": 19,
+        "question": "Hangi değer Türk aile yapısında temeldir?",
+        "options": [
+            "Saygı ve sevgi",
+            "Nefret",
+            "Düşmanlık",
+            "Yabancılaşma"
+        ]
+    },
+    {
+        "id": 20,
+        "question": "Türk milletinin en önemli gücü nedir?",
+        "options": [
+            "Milli birlik",
+            "Ayrılık",
+            "Çatışma",
+            "Bölünme"
+        ]
+    }
+]

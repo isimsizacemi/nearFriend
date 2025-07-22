@@ -17,19 +17,29 @@ class _MainAppState extends State<MainApp> {
   int _selectedIndex = 0;
   final GlobalKey<FeedScreenState> _feedScreenKey =
       GlobalKey<FeedScreenState>();
+  final GlobalKey<ProfileScreenState> _profileScreenKey =
+      GlobalKey<ProfileScreenState>();
 
   List<Widget> get _screens => [
         FeedScreen(key: _feedScreenKey, useScaffold: false),
         const MatchScreen(),
         const CheckinScreen(),
         const ChatScreen(),
-        const ProfileScreen(),
+        ProfileScreen(key: _profileScreenKey),
       ];
 
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
+
+    // Profil ekranına geçiş yapıldığında yenileme yap
+    if (index == 4) {
+      // Profil ekranını yenile
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _profileScreenKey.currentState?.refreshProfile();
+      });
+    }
   }
 
   @override

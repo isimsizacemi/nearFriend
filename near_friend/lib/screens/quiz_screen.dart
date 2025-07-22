@@ -1,7 +1,8 @@
 import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../utils/question_bank.dart';
 import '../models/question.dart';
 import '../services/auth_service.dart';
 import '../utils/app_theme.dart';
@@ -20,20 +21,52 @@ class _QuizScreenState extends State<QuizScreen> {
   int _correctCount = 0;
   List<int?> _userAnswers = [];
   bool _quizFinished = false;
+  bool _isLoading = true;
   final AuthService _authService = AuthService();
 
   @override
   void initState() {
     super.initState();
-    _selectedQuestions = _getRandomQuestions(3);
-    _userAnswers = List.filled(_selectedQuestions.length, null);
+    _loadQuestions();
   }
 
-  List<Question> _getRandomQuestions(int count) {
-    final random = Random();
-    final questions = List<Question>.from(questionBank);
-    questions.shuffle(random);
-    return questions.take(count).toList();
+  Future<void> _loadQuestions() async {
+    try {
+      final questions = await _loadQuestionsFromJson();
+      final random = Random();
+      questions.shuffle(random);
+      final selectedQuestions = questions.take(5).toList();
+
+      setState(() {
+        _selectedQuestions = selectedQuestions;
+        _userAnswers = List.filled(_selectedQuestions.length, null);
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Sorular yüklenirken hata: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<List<Question>> _loadQuestionsFromJson() async {
+    try {
+      final String jsonString =
+          await rootBundle.loadString('assets/quiz_questions.json');
+      final List<dynamic> jsonList = json.decode(jsonString);
+
+      return jsonList.map((json) {
+        return Question(
+          question: json['question'],
+          options: List<String>.from(json['options']),
+          correctIndex: 0, // İlk seçenek doğru kabul ediyoruz
+        );
+      }).toList();
+    } catch (e) {
+      print('JSON dosyası okunurken hata: $e');
+      return [];
+    }
   }
 
   void _answerQuestion(int selectedIndex) {
@@ -52,10 +85,12 @@ class _QuizScreenState extends State<QuizScreen> {
 
   void _restartQuiz() {
     setState(() {
-      _selectedQuestions = _getRandomQuestions(3);
+      _isLoading = true;
+    });
+    _loadQuestions();
+    setState(() {
       _currentIndex = 0;
       _correctCount = 0;
-      _userAnswers = List.filled(_selectedQuestions.length, null);
       _quizFinished = false;
     });
   }
@@ -91,6 +126,34 @@ class _QuizScreenState extends State<QuizScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor:
+            isDark ? AppTheme.iosDarkBackground : AppTheme.iosBackground,
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(
+                  color: AppTheme.iosPurple,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Sorular yükleniyor...',
+                  style: AppTheme.iosFont.copyWith(
+                    color: isDark
+                        ? AppTheme.iosDarkSecondaryText
+                        : AppTheme.iosSecondaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     if (_quizFinished) {
       final passed = _correctCount == _selectedQuestions.length;

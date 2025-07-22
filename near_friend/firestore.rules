@@ -4,14 +4,8 @@ service cloud.firestore {
     
     // Kullanıcılar koleksiyonu
     match /users/{userId} {
-      // Kullanıcı kendi verilerini okuyabilir/yazabilir
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      
-      // Diğer kullanıcıların profilini okuyabilir (match için gerekli)
-      allow read: if request.auth != null && 
-        request.auth.uid != userId && 
-        resource.data.hasCreatedProfile == true &&
-        resource.data.isActive == true;
+      // Herkes kullanıcı profillerini okuyabilir
+      allow read: if request.auth != null;
       
       // Kullanıcı kendi profilini güncelleyebilir
       allow update: if request.auth != null && 
@@ -23,13 +17,11 @@ service cloud.firestore {
     
     // Check-in'ler koleksiyonu
     match /checkins/{checkinId} {
-      // Herkes aktif check-in'leri okuyabilir
-      allow read: if request.auth != null && 
-        resource.data.isActive == true;
+      // Herkes check-in'leri okuyabilir
+      allow read: if request.auth != null;
       
-      // Kullanıcı kendi check-in'ini oluşturabilir
-      allow create: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
+      // Kullanıcı check-in oluşturabilir
+      allow create: if request.auth != null;
       
       // Kullanıcı kendi check-in'ini güncelleyebilir (beğeni, yorum vb.)
       allow update: if request.auth != null && 
@@ -64,6 +56,11 @@ service cloud.firestore {
       
       // Kullanıcı chat oluşturabilir (eşleşme sonrası)
       allow create: if request.auth != null && 
+        (request.auth.uid == request.resource.data.user1Id || 
+         request.auth.uid == request.resource.data.user2Id);
+      
+      // Chat güncellemelerine izin ver (son mesaj, okundu durumu vb.)
+      allow update: if request.auth != null && 
         (request.auth.uid == resource.data.user1Id || 
          request.auth.uid == resource.data.user2Id);
     }
@@ -75,7 +72,7 @@ service cloud.firestore {
       
       // Kullanıcı yorum yazabilir
       allow create: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
+        request.auth.uid == request.resource.data.userId;
       
       // Kullanıcı kendi yorumunu güncelleyebilir/silebilir
       allow update, delete: if request.auth != null && 
@@ -91,7 +88,7 @@ service cloud.firestore {
       
       // Kullanıcı mesaj gönderebilir
       allow create: if request.auth != null && 
-        request.auth.uid == resource.data.senderId;
+        request.auth.uid == request.resource.data.senderId;
       
       // Kullanıcı kendi mesajını silebilir
       allow delete: if request.auth != null && 
@@ -112,7 +109,7 @@ service cloud.firestore {
       
       // Kullanıcı quiz sonucunu kaydedebilir
       allow create: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
+        request.auth.uid == request.resource.data.userId;
     }
     
     // Bildirimler koleksiyonu
@@ -131,16 +128,10 @@ service cloud.firestore {
     match /reports/{reportId} {
       // Kullanıcı rapor oluşturabilir
       allow create: if request.auth != null && 
-        request.auth.uid == resource.data.reporterId;
+        request.auth.uid == request.resource.data.reporterId;
       
       // Sadece admin raporları okuyabilir (gelecekte admin kontrolü eklenecek)
       allow read: if request.auth != null;
-    }
-    
-    // Genel kural - giriş yapmış kullanıcılar için
-    match /{document=**} {
-      // Varsayılan olarak giriş yapmış kullanıcılara izin ver
-      allow read, write: if request.auth != null;
     }
   }
 } 

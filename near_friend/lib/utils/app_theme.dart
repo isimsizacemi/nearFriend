@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // iOS Light Theme Colors
@@ -31,38 +30,44 @@ class AppTheme {
   static const Color iosDarkSecondaryText = Color(0xFF8E8E93);
   static const Color iosDarkTertiaryText = Color(0xFF48484A);
 
-  // iOS Style Font
-  static TextStyle get iosFont => GoogleFonts.inter(
+  // iOS Style Font - SFPro
+  static TextStyle get iosFont => const TextStyle(
+        fontFamily: 'SFPro',
         fontSize: 17,
         fontWeight: FontWeight.w400,
         letterSpacing: -0.41,
       );
 
-  static TextStyle get iosFontBold => GoogleFonts.inter(
+  static TextStyle get iosFontBold => const TextStyle(
+        fontFamily: 'SFPro',
         fontSize: 17,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
         letterSpacing: -0.41,
       );
 
-  static TextStyle get iosFontLarge => GoogleFonts.inter(
+  static TextStyle get iosFontLarge => const TextStyle(
+        fontFamily: 'SFPro',
         fontSize: 34,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.37,
       );
 
-  static TextStyle get iosFontMedium => GoogleFonts.inter(
+  static TextStyle get iosFontMedium => const TextStyle(
+        fontFamily: 'SFPro',
         fontSize: 22,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500,
         letterSpacing: 0.35,
       );
 
-  static TextStyle get iosFontSmall => GoogleFonts.inter(
+  static TextStyle get iosFontSmall => const TextStyle(
+        fontFamily: 'SFPro',
         fontSize: 15,
         fontWeight: FontWeight.w400,
         letterSpacing: -0.24,
       );
 
-  static TextStyle get iosFontCaption => GoogleFonts.inter(
+  static TextStyle get iosFontCaption => const TextStyle(
+        fontFamily: 'SFPro',
         fontSize: 12,
         fontWeight: FontWeight.w400,
         letterSpacing: 0,
@@ -73,7 +78,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      fontFamily: GoogleFonts.inter().fontFamily,
+      fontFamily: 'SFPro',
 
       // Color Scheme
       colorScheme: const ColorScheme.light(
@@ -185,7 +190,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      fontFamily: GoogleFonts.inter().fontFamily,
+      fontFamily: 'SFPro',
 
       // Color Scheme
       colorScheme: const ColorScheme.dark(

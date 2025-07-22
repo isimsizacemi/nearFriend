@@ -1,11 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../models/user_model.dart';
 import '../services/match_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/app_theme.dart';
+import 'package:geoflutterfire2/geoflutterfire2.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
+class FakeDoc implements DocumentSnapshot {
+  final Map<String, dynamic> _data;
+  FakeDoc(this._data);
+  @override
+  Map<String, dynamic>? data([options]) => _data;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 class MatchScreen extends StatefulWidget {
   const MatchScreen({super.key});
@@ -21,6 +35,10 @@ class _MatchScreenState extends State<MatchScreen> {
   bool _isLoading = true;
   Position? _currentPosition;
 
+  static const String _cacheKey = 'match_users_cache';
+  static const String _cacheTimeKey = 'match_users_cache_time';
+  static const Duration _cacheDuration = Duration(minutes: 5);
+
   // Filtreler
   double _maxDistance = 100.0; // km - çok daha geniş mesafe
   int _minAge = 18; // minimum yaş
@@ -30,8 +48,34 @@ class _MatchScreenState extends State<MatchScreen> {
   @override
   void initState() {
     super.initState();
+    _loadFromCache();
     _loadFilterSettings();
     _getCurrentLocation();
+  }
+
+  Future<void> _loadFromCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheTime = prefs.getInt(_cacheTimeKey);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (cacheTime != null && now - cacheTime < _cacheDuration.inMilliseconds) {
+      final cacheData = prefs.getString(_cacheKey);
+      if (cacheData != null) {
+        final List<dynamic> jsonList = json.decode(cacheData);
+        final cachedUsers =
+            jsonList.map((e) => UserModel.fromFirestore(FakeDoc(e))).toList();
+        setState(() {
+          _users = cachedUsers;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveToCache(List<UserModel> users) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = users.map((u) => u.toFirestore()).toList();
+    await prefs.setString(_cacheKey, json.encode(jsonList));
+    await prefs.setInt(_cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
   }
 
   Future<void> _loadFilterSettings() async {
@@ -85,12 +129,18 @@ class _MatchScreenState extends State<MatchScreen> {
       // Kullanıcının konumunu Firestore'a kaydet
       final user = FirebaseAuth.instance.currentUser;
       if (user != null && _currentPosition != null) {
+        final geo = GeoFlutterFire();
+        final myLocation = geo.point(
+          latitude: _currentPosition!.latitude,
+          longitude: _currentPosition!.longitude,
+        );
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .update({
           'currentLocation':
               GeoPoint(_currentPosition!.latitude, _currentPosition!.longitude),
+          'location': myLocation.data, // {'geohash': ..., 'geopoint': GeoPoint}
           'lastActiveAt': FieldValue.serverTimestamp(),
           'isActive': true,
         });
@@ -157,12 +207,14 @@ class _MatchScreenState extends State<MatchScreen> {
     print('- Tercih edilen cinsiyet: $_preferredGender');
 
     try {
+      // Firestore index uyarısı: Eğer composite index hatası alırsan, Firestore Console'dan önerilen indexi oluştur.
       final users = await _matchService.getNearbyUsers(
         maxDistance: _maxDistance * 1000, // km'yi metre'ye çevir
         minAge: _minAge,
         maxAge: _maxAge,
         preferredGender: _preferredGender,
         currentPosition: _currentPosition,
+        // Son 24 saat aktif kullanıcılar için ek filtreleme MatchService'de yapılmalı
       );
 
       print('Yüklenen kullanıcı sayısı: ${users.length}');
@@ -173,6 +225,7 @@ class _MatchScreenState extends State<MatchScreen> {
           _currentIndex = 0;
           _isLoading = false;
         });
+        await _saveToCache(users);
       }
     } catch (e) {
       print('Kullanıcılar yüklenirken hata: $e');
@@ -234,6 +287,103 @@ class _MatchScreenState extends State<MatchScreen> {
     }
   }
 
+  Widget _buildSkeletonCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppTheme.iosDarkSecondaryBackground
+            : AppTheme.iosSecondaryBackground,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? AppTheme.iosDarkTertiaryBackground
+                  : AppTheme.iosTertiaryBackground,
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 120,
+                  height: 14,
+                  color: isDark
+                      ? AppTheme.iosDarkTertiaryBackground
+                      : AppTheme.iosTertiaryBackground,
+                  margin: const EdgeInsets.only(bottom: 8),
+                ),
+                Container(
+                  width: double.infinity,
+                  height: 12,
+                  color: isDark
+                      ? AppTheme.iosDarkTertiaryBackground
+                      : AppTheme.iosTertiaryBackground,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(32),
+        margin: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isDark
+              ? AppTheme.iosDarkSecondaryBackground
+              : AppTheme.iosSecondaryBackground,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              CupertinoIcons.person_2_fill,
+              size: 48,
+              color: isDark
+                  ? AppTheme.iosDarkSecondaryText
+                  : AppTheme.iosSecondaryText,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Yakında eşleşme yok',
+              style: AppTheme.iosFontSmall.copyWith(
+                color: isDark
+                    ? AppTheme.iosDarkSecondaryText
+                    : AppTheme.iosSecondaryText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _onSwipe(DismissDirection direction, int index) {
+    if (direction == DismissDirection.endToStart) {
+      _dislikeUser();
+    } else if (direction == DismissDirection.startToEnd) {
+      _likeUser();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -246,45 +396,55 @@ class _MatchScreenState extends State<MatchScreen> {
           children: [
             // iOS Style Header
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: isDark
                     ? AppTheme.iosDarkSecondaryBackground
                     : AppTheme.iosSecondaryBackground,
                 borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: AppTheme.iosPink,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                     child: const Icon(
-                      Icons.favorite,
+                      CupertinoIcons.heart_fill,
                       color: Colors.white,
-                      size: 24,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Eşleşme',
-                          style: AppTheme.iosFontMedium.copyWith(
+                          style: AppTheme.iosFontSmall.copyWith(
+                            fontWeight: FontWeight.w600,
                             color: isDark
                                 ? AppTheme.iosDarkPrimaryText
                                 : AppTheme.iosPrimaryText,
                           ),
                         ),
                         Text(
-                          '${_users.length} kişi bulundu',
+                          _hasActiveFilters()
+                              ? '${_users.length} kişi bulundu (filtreli)'
+                              : '${_users.length} kişi bulundu',
                           style: AppTheme.iosFontSmall.copyWith(
                             color: isDark
                                 ? AppTheme.iosDarkSecondaryText
@@ -294,148 +454,102 @@ class _MatchScreenState extends State<MatchScreen> {
                       ],
                     ),
                   ),
-                  IconButton(
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
                     onPressed: _showFilterDialog,
-                    icon: Icon(
-                      Icons.tune,
-                      color: AppTheme.iosPink,
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? AppTheme.iosDarkTertiaryBackground
+                            : AppTheme.iosTertiaryBackground,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        CupertinoIcons.slider_horizontal_3,
+                        color: isDark
+                            ? AppTheme.iosDarkPrimaryText
+                            : AppTheme.iosPrimaryText,
+                        size: 20,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
 
-            // Content
+            // Ana içerik
             Expanded(
               child: _isLoading
-                  ? Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppTheme.iosDarkSecondaryBackground
-                              : AppTheme.iosSecondaryBackground,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(
-                              color: AppTheme.iosPink,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Yakındaki kişiler aranıyor...',
-                              style: AppTheme.iosFont.copyWith(
-                                color: isDark
-                                    ? AppTheme.iosDarkSecondaryText
-                                    : AppTheme.iosSecondaryText,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
+                  ? Center(child: CupertinoActivityIndicator())
                   : _users.isEmpty
-                      ? Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(32),
-                            margin: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? AppTheme.iosDarkSecondaryBackground
-                                  : AppTheme.iosSecondaryBackground,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.people_outline,
-                                  size: 64,
-                                  color: isDark
-                                      ? AppTheme.iosDarkSecondaryText
-                                      : AppTheme.iosSecondaryText,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Yakınında kimse yok',
-                                  style: AppTheme.iosFontMedium.copyWith(
-                                    color: isDark
-                                        ? AppTheme.iosDarkPrimaryText
-                                        : AppTheme.iosPrimaryText,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Filtreleri değiştirmeyi dene',
-                                  style: AppTheme.iosFontSmall.copyWith(
-                                    color: isDark
-                                        ? AppTheme.iosDarkSecondaryText
-                                        : AppTheme.iosSecondaryText,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : Column(
-                          children: [
-                            // Kart alanı
-                            Expanded(
-                              child: _currentIndex < _users.length
-                                  ? _buildUserCard(_users[_currentIndex])
-                                  : Center(
-                                      child: Container(
-                                        padding: const EdgeInsets.all(32),
-                                        margin: const EdgeInsets.all(20),
-                                        decoration: BoxDecoration(
+                      ? _buildEmptyState()
+                      : Stack(
+                          alignment: Alignment.center,
+                          children: List.generate(_users.length, (index) {
+                            if (index >= _users.length) return const SizedBox();
+
+                            final user = _users[index];
+                            final isTop = index == _users.length - 1;
+
+                            return Positioned.fill(
+                              child: AnimatedOpacity(
+                                opacity: isTop ? 1.0 : 0.0,
+                                duration: const Duration(milliseconds: 200),
+                                child: AnimatedScale(
+                                  scale: isTop ? 1.0 : 0.9,
+                                  duration: const Duration(milliseconds: 200),
+                                  child: Dismissible(
+                                    key: ValueKey(user.id),
+                                    direction: DismissDirection.horizontal,
+                                    onDismissed: (direction) {
+                                      if (direction ==
+                                          DismissDirection.startToEnd) {
+                                        _likeUser();
+                                      } else {
+                                        _dislikeUser();
+                                      }
+                                    },
+                                    child: Card(
+                                      margin: const EdgeInsets.all(16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                      ),
+                                      elevation: 8,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(24),
+                                        child: Container(
                                           color: isDark
                                               ? AppTheme
                                                   .iosDarkSecondaryBackground
                                               : AppTheme.iosSecondaryBackground,
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                        ),
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.check_circle,
-                                              size: 64,
-                                              color: AppTheme.iosGreen,
-                                            ),
-                                            const SizedBox(height: 16),
-                                            Text(
-                                              'Tüm kullanıcıları gördün',
-                                              style: AppTheme.iosFontMedium
-                                                  .copyWith(
-                                                color: isDark
-                                                    ? AppTheme
-                                                        .iosDarkPrimaryText
-                                                    : AppTheme.iosPrimaryText,
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              _buildUserCard(user,
+                                                  showDetails: true),
+                                              Flexible(
+                                                child: SingleChildScrollView(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 8,
+                                                  ),
+                                                  child:
+                                                      _buildUserDetails(user),
+                                                ),
                                               ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              'Daha fazla kişi için filtreleri değiştir',
-                                              style: AppTheme.iosFontSmall
-                                                  .copyWith(
-                                                color: isDark
-                                                    ? AppTheme
-                                                        .iosDarkSecondaryText
-                                                    : AppTheme.iosSecondaryText,
-                                              ),
-                                            ),
-                                          ],
+                                              _buildActionButtons(),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
-                            ),
-                            // Butonlar
-                            _buildActionButtons(),
-                          ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).reversed.toList(),
                         ),
             ),
           ],
@@ -444,347 +558,120 @@ class _MatchScreenState extends State<MatchScreen> {
     );
   }
 
-  Widget _buildUserCard(UserModel user) {
-    final distance = _getDistance(user);
-    final commonInterests = user.interests.take(3).join(', ');
+  Widget _buildUserCard(UserModel user, {bool showDetails = false}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
-      margin: const EdgeInsets.all(16),
+      width: double.infinity,
+      constraints: const BoxConstraints(maxHeight: 400),
       decoration: BoxDecoration(
         color: isDark
             ? AppTheme.iosDarkSecondaryBackground
             : AppTheme.iosSecondaryBackground,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 25,
-            offset: const Offset(0, 10),
-          ),
-        ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Profil fotoğrafı alanı
-          Container(
-            height: 480,
-            decoration: BoxDecoration(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(24)),
-              image: user.photoURL != null
-                  ? DecorationImage(
-                      image: NetworkImage(user.photoURL!),
+          // Profil fotoğrafı ve temel bilgiler
+          Flexible(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: user.photoURL != null
+                  ? CachedNetworkImage(
+                      imageUrl: user.photoURL!,
                       fit: BoxFit.cover,
-                    )
-                  : null,
-            ),
-            child: user.photoURL == null
-                ? Container(
-                    decoration: BoxDecoration(
-                      borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(24)),
-                      color: isDark
-                          ? AppTheme.iosDarkTertiaryBackground
-                          : AppTheme.iosTertiaryBackground,
-                    ),
-                    child: Icon(
-                      Icons.person,
-                      size: 120,
-                      color: isDark
-                          ? AppTheme.iosDarkSecondaryText
-                          : AppTheme.iosSecondaryText,
-                    ),
-                  )
-                : Stack(
-                    children: [
-                      // Gradient overlay
-                      Positioned.fill(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(24)),
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.4),
-                              ],
-                              stops: const [0.6, 1.0],
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Distance badge
-                      Positioned(
-                        top: 20,
-                        right: 20,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: AppTheme.iosBlue.withOpacity(0.95),
-                            borderRadius: BorderRadius.circular(25),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.iosBlue.withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.location_on,
-                                size: 18,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _formatDistance(distance),
-                                style: AppTheme.iosFontSmall.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      // Age badge
-                      Positioned(
-                        top: 20,
-                        left: 20,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: AppTheme.iosPink.withOpacity(0.95),
-                            borderRadius: BorderRadius.circular(25),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.iosPink.withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            '${user.age} yaş',
-                            style: AppTheme.iosFontSmall.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Bottom info overlay
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(24)),
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.8),
-                              ],
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                user.displayName,
-                                style: AppTheme.iosFontLarge.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black.withOpacity(0.5),
-                                      offset: const Offset(0, 1),
-                                      blurRadius: 3,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.school,
-                                    size: 16,
-                                    color: Colors.white.withOpacity(0.9),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      '${user.university} - ${user.department}',
-                                      style: AppTheme.iosFontSmall.copyWith(
-                                        color: Colors.white.withOpacity(0.9),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-          ),
-          // Kullanıcı detayları
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Gender badge
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: AppTheme.iosPink.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: AppTheme.iosPink.withOpacity(0.3),
-                          width: 1,
-                        ),
-                      ),
-                      child: Text(
-                        user.gender,
-                        style: AppTheme.iosFontSmall.copyWith(
-                          color: AppTheme.iosPink,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    if (user.isOnline)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppTheme.iosGreen.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: AppTheme.iosGreen,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Çevrimiçi',
-                              style: AppTheme.iosFontSmall.copyWith(
-                                color: AppTheme.iosGreen,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-                if (user.bio != null && user.bio!.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? AppTheme.iosDarkTertiaryBackground
-                          : AppTheme.iosTertiaryBackground,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
+                      width: double.infinity,
+                      placeholder: (context, url) => Container(
                         color: isDark
                             ? AppTheme.iosDarkTertiaryBackground
                             : AppTheme.iosTertiaryBackground,
-                        width: 1,
+                        child:
+                            const Center(child: CupertinoActivityIndicator()),
                       ),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          size: 20,
+                      errorWidget: (context, url, error) => Container(
+                        color: isDark
+                            ? AppTheme.iosDarkTertiaryBackground
+                            : AppTheme.iosTertiaryBackground,
+                        child: Icon(
+                          CupertinoIcons.person_fill,
+                          size: 48,
                           color: isDark
                               ? AppTheme.iosDarkSecondaryText
                               : AppTheme.iosSecondaryText,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            user.bio!,
-                            style: AppTheme.iosFont.copyWith(
-                              color: isDark
-                                  ? AppTheme.iosDarkPrimaryText
-                                  : AppTheme.iosPrimaryText,
-                              height: 1.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                if (user.interests.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    'İlgi Alanları',
-                    style: AppTheme.iosFontMedium.copyWith(
+                      ),
+                    )
+                  : Container(
                       color: isDark
-                          ? AppTheme.iosDarkPrimaryText
-                          : AppTheme.iosPrimaryText,
-                      fontWeight: FontWeight.w600,
+                          ? AppTheme.iosDarkTertiaryBackground
+                          : AppTheme.iosTertiaryBackground,
+                      child: Icon(
+                        CupertinoIcons.person_fill,
+                        size: 48,
+                        color: isDark
+                            ? AppTheme.iosDarkSecondaryText
+                            : AppTheme.iosSecondaryText,
+                      ),
+                    ),
+            ),
+          ),
+
+          // Kullanıcı bilgileri
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        user.displayName,
+                        style: AppTheme.iosFont.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? AppTheme.iosDarkPrimaryText
+                              : AppTheme.iosPrimaryText,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${user.age} yaş',
+                      style: AppTheme.iosFontSmall.copyWith(
+                        color: isDark
+                            ? AppTheme.iosDarkSecondaryText
+                            : AppTheme.iosSecondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+                if (user.university != null && user.university!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      user.university!,
+                      style: AppTheme.iosFontSmall.copyWith(
+                        color: isDark
+                            ? AppTheme.iosDarkSecondaryText
+                            : AppTheme.iosSecondaryText,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: user.interests.take(6).map((interest) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppTheme.iosBlue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: AppTheme.iosBlue.withOpacity(0.2),
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          interest,
-                          style: AppTheme.iosFontSmall.copyWith(
-                            color: AppTheme.iosBlue,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                if (user.bio != null && user.bio!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      user.bio!,
+                      style: AppTheme.iosFontSmall.copyWith(
+                        color: isDark
+                            ? AppTheme.iosDarkSecondaryText
+                            : AppTheme.iosSecondaryText,
+                      ),
+                      maxLines: showDetails ? null : 2,
+                      overflow: showDetails ? null : TextOverflow.ellipsis,
+                    ),
                   ),
-                ],
               ],
             ),
           ),
@@ -793,62 +680,121 @@ class _MatchScreenState extends State<MatchScreen> {
     );
   }
 
+  Widget _buildUserDetails(UserModel user) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(maxHeight: 300),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (user.interests != null && user.interests!.isNotEmpty) ...[
+              Text(
+                'İlgi Alanları',
+                style: AppTheme.iosFontSmall.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: isDark
+                      ? AppTheme.iosDarkPrimaryText
+                      : AppTheme.iosPrimaryText,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: user.interests!
+                    .map((interest) => Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? AppTheme.iosDarkTertiaryBackground
+                                : AppTheme.iosTertiaryBackground,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            interest,
+                            style: AppTheme.iosFontSmall.copyWith(
+                              color: isDark
+                                  ? AppTheme.iosDarkSecondaryText
+                                  : AppTheme.iosSecondaryText,
+                            ),
+                          ),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+            ],
+            if (user.bio != null && user.bio!.isNotEmpty) ...[
+              Text(
+                'Hakkında',
+                style: AppTheme.iosFontSmall.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: isDark
+                      ? AppTheme.iosDarkPrimaryText
+                      : AppTheme.iosPrimaryText,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                user.bio!,
+                style: AppTheme.iosFontSmall.copyWith(
+                  color: isDark
+                      ? AppTheme.iosDarkSecondaryText
+                      : AppTheme.iosSecondaryText,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildActionButtons() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // Dislike Button
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: isDark
-                  ? AppTheme.iosDarkSecondaryBackground
-                  : AppTheme.iosSecondaryBackground,
-              borderRadius: BorderRadius.circular(35),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: IconButton(
-              onPressed: _dislikeUser,
-              icon: Icon(
-                Icons.close,
-                size: 32,
+          CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: _dislikeUser,
+            child: Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppTheme.iosDarkTertiaryBackground
+                    : AppTheme.iosTertiaryBackground,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                CupertinoIcons.xmark,
                 color: AppTheme.iosRed,
+                size: 32,
               ),
             ),
           ),
-
-          // Like Button
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: AppTheme.iosPink,
-              borderRadius: BorderRadius.circular(35),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.iosPink.withOpacity(0.3),
-                  blurRadius: 15,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: IconButton(
-              onPressed: _likeUser,
-              icon: const Icon(
-                Icons.favorite,
+          CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: _likeUser,
+            child: Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppTheme.iosDarkTertiaryBackground
+                    : AppTheme.iosTertiaryBackground,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                CupertinoIcons.heart_fill,
+                color: AppTheme.iosPink,
                 size: 32,
-                color: Colors.white,
               ),
             ),
           ),
@@ -860,195 +806,400 @@ class _MatchScreenState extends State<MatchScreen> {
   void _showFilterDialog() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    showDialog(
+    // Geçici değerler için state
+    double tempMaxDistance = _maxDistance;
+    int tempMinAge = _minAge;
+    int tempMaxAge = _maxAge;
+    String? tempPreferredGender = _preferredGender;
+
+    showCupertinoModalPopup(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDark
-            ? AppTheme.iosDarkSecondaryBackground
-            : AppTheme.iosSecondaryBackground,
-        title: Text(
-          'Filtre Ayarları',
-          style: AppTheme.iosFontMedium.copyWith(
-            color:
-                isDark ? AppTheme.iosDarkPrimaryText : AppTheme.iosPrimaryText,
-          ),
-        ),
-        content: Container(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Mesafe
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppTheme.iosDarkBackground
-                      : AppTheme.iosBackground,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Maksimum Mesafe',
-                      style: AppTheme.iosFontMedium.copyWith(
-                        color: isDark
-                            ? AppTheme.iosDarkPrimaryText
-                            : AppTheme.iosPrimaryText,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Slider(
-                      value: _maxDistance.clamp(1.0, 100.0),
-                      min: 1,
-                      max: 100,
-                      divisions: 99,
-                      activeColor: AppTheme.iosBlue,
-                      onChanged: (value) {
-                        setState(() {
-                          _maxDistance = value;
-                        });
-                      },
-                    ),
-                    Text(
-                      _maxDistance >= 100
-                          ? '🌍 Mesafe sınırı yok (tüm kullanıcılar)'
-                          : '📍 Maksimum mesafe: ${_maxDistance.round()}km',
-                      style: AppTheme.iosFontSmall.copyWith(
-                        color: _maxDistance >= 100
-                            ? AppTheme.iosGreen
-                            : AppTheme.iosBlue,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Material(
+            type: MaterialType.transparency,
+            child: Container(
+              height: MediaQuery.of(context).size.height * 0.7,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppTheme.iosDarkSecondaryBackground
+                    : AppTheme.iosSecondaryBackground,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // Yaş aralığı
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppTheme.iosDarkBackground
-                      : AppTheme.iosBackground,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Yaş Aralığı',
-                      style: AppTheme.iosFontMedium.copyWith(
-                        color: isDark
-                            ? AppTheme.iosDarkPrimaryText
-                            : AppTheme.iosPrimaryText,
+              child: Column(
+                children: [
+                  // Header
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppTheme.iosDarkSecondaryBackground
+                          : AppTheme.iosSecondaryBackground,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(24),
+                        topRight: Radius.circular(24),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    RangeSlider(
-                      values:
-                          RangeValues(_minAge.toDouble(), _maxAge.toDouble()),
-                      min: 18,
-                      max: 50,
-                      divisions: 32,
-                      activeColor: AppTheme.iosPink,
-                      onChanged: (values) {
-                        setState(() {
-                          _minAge = values.start.round();
-                          _maxAge = values.end.round();
-                        });
-                      },
-                    ),
-                    Text(
-                      '👥 Yaş aralığı: $_minAge - $_maxAge',
-                      style: AppTheme.iosFontSmall.copyWith(
-                        color: AppTheme.iosPink,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Cinsiyet tercihi
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppTheme.iosDarkBackground
-                      : AppTheme.iosBackground,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Cinsiyet Tercihi',
-                      style: AppTheme.iosFontMedium.copyWith(
-                        color: isDark
-                            ? AppTheme.iosDarkPrimaryText
-                            : AppTheme.iosPrimaryText,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      value: _preferredGender,
-                      decoration: InputDecoration(
-                        hintText: 'Cinsiyet seçin',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
                         ),
-                        filled: true,
-                        fillColor: isDark
-                            ? AppTheme.iosDarkSecondaryBackground
-                            : AppTheme.iosSecondaryBackground,
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                            value: null, child: Text('🤷 Fark etmez')),
-                        DropdownMenuItem(
-                            value: 'Erkek', child: Text('👨 Erkek')),
-                        DropdownMenuItem(
-                            value: 'Kadın', child: Text('👩 Kadın')),
                       ],
-                      onChanged: (value) {
-                        setState(() {
-                          _preferredGender = value;
-                        });
-                      },
                     ),
-                  ],
-                ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.iosPink,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.slider_horizontal_3,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Filtre Ayarları',
+                                style: AppTheme.iosFontSmall.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark
+                                      ? AppTheme.iosDarkPrimaryText
+                                      : AppTheme.iosPrimaryText,
+                                ),
+                              ),
+                              Text(
+                                'Eşleşme tercihlerinizi ayarlayın',
+                                style: AppTheme.iosFontCaption.copyWith(
+                                  color: isDark
+                                      ? AppTheme.iosDarkSecondaryText
+                                      : AppTheme.iosSecondaryText,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        CupertinoButton(
+                          padding: const EdgeInsets.all(8),
+                          onPressed: () => Navigator.pop(context),
+                          child: Icon(
+                            CupertinoIcons.xmark,
+                            color: isDark
+                                ? AppTheme.iosDarkSecondaryText
+                                : AppTheme.iosSecondaryText,
+                            size: 20,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Content
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          // Mesafe Filtresi
+                          _buildFilterSection(
+                            title: '📍 Maksimum Mesafe',
+                            subtitle: tempMaxDistance >= 100
+                                ? '🌍 Mesafe sınırı yok (tüm kullanıcılar)'
+                                : '📍 Maksimum mesafe: ${tempMaxDistance.round()}km',
+                            color: tempMaxDistance >= 100
+                                ? AppTheme.iosGreen
+                                : AppTheme.iosBlue,
+                            child: Column(
+                              children: [
+                                CupertinoSlider(
+                                  value: tempMaxDistance.clamp(1.0, 100.0),
+                                  min: 1,
+                                  max: 100,
+                                  divisions: 99,
+                                  activeColor: AppTheme.iosBlue,
+                                  onChanged: (value) {
+                                    setModalState(() {
+                                      tempMaxDistance = value;
+                                    });
+                                  },
+                                ),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '1km',
+                                      style: AppTheme.iosFontCaption.copyWith(
+                                        color: isDark
+                                            ? AppTheme.iosDarkSecondaryText
+                                            : AppTheme.iosSecondaryText,
+                                      ),
+                                    ),
+                                    Text(
+                                      '100km+',
+                                      style: AppTheme.iosFontCaption.copyWith(
+                                        color: isDark
+                                            ? AppTheme.iosDarkSecondaryText
+                                            : AppTheme.iosSecondaryText,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // Yaş Aralığı Filtresi
+                          _buildFilterSection(
+                            title: '👥 Yaş Aralığı',
+                            subtitle:
+                                '👥 Yaş aralığı: $tempMinAge - $tempMaxAge',
+                            color: AppTheme.iosPink,
+                            child: Column(
+                              children: [
+                                RangeSlider(
+                                  values: RangeValues(tempMinAge.toDouble(),
+                                      tempMaxAge.toDouble()),
+                                  min: 18,
+                                  max: 50,
+                                  divisions: 32,
+                                  activeColor: AppTheme.iosPink,
+                                  onChanged: (values) {
+                                    setModalState(() {
+                                      tempMinAge = values.start.round();
+                                      tempMaxAge = values.end.round();
+                                    });
+                                  },
+                                ),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '18',
+                                      style: AppTheme.iosFontCaption.copyWith(
+                                        color: isDark
+                                            ? AppTheme.iosDarkSecondaryText
+                                            : AppTheme.iosSecondaryText,
+                                      ),
+                                    ),
+                                    Text(
+                                      '50',
+                                      style: AppTheme.iosFontCaption.copyWith(
+                                        color: isDark
+                                            ? AppTheme.iosDarkSecondaryText
+                                            : AppTheme.iosSecondaryText,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // Cinsiyet Tercihi Filtresi
+                          _buildFilterSection(
+                            title: '👤 Cinsiyet Tercihi',
+                            subtitle: tempPreferredGender == null
+                                ? '🤷 Fark etmez'
+                                : tempPreferredGender == 'Erkek'
+                                    ? '👨 Erkek'
+                                    : '👩 Kadın',
+                            color: AppTheme.iosPurple,
+                            child: Container(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? AppTheme.iosDarkTertiaryBackground
+                                    : AppTheme.iosTertiaryBackground,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: tempPreferredGender,
+                                  isExpanded: true,
+                                  icon: Icon(
+                                    CupertinoIcons.chevron_down,
+                                    color: isDark
+                                        ? AppTheme.iosDarkSecondaryText
+                                        : AppTheme.iosSecondaryText,
+                                  ),
+                                  style: AppTheme.iosFontSmall.copyWith(
+                                    color: isDark
+                                        ? AppTheme.iosDarkPrimaryText
+                                        : AppTheme.iosPrimaryText,
+                                  ),
+                                  items: [
+                                    DropdownMenuItem(
+                                      value: null,
+                                      child: Row(
+                                        children: [
+                                          const Text('🤷 '),
+                                          Text(
+                                            'Fark etmez',
+                                            style: AppTheme.iosFontSmall,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'Erkek',
+                                      child: Row(
+                                        children: [
+                                          const Text('👨 '),
+                                          Text(
+                                            'Erkek',
+                                            style: AppTheme.iosFontSmall,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'Kadın',
+                                      child: Row(
+                                        children: [
+                                          const Text('👩 '),
+                                          Text(
+                                            'Kadın',
+                                            style: AppTheme.iosFontSmall,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (value) {
+                                    setModalState(() {
+                                      tempPreferredGender = value;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Bottom Buttons
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppTheme.iosDarkSecondaryBackground
+                          : AppTheme.iosSecondaryBackground,
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(24),
+                        bottomRight: Radius.circular(24),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: CupertinoButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text(
+                              'İptal',
+                              style: AppTheme.iosFontSmall.copyWith(
+                                color: AppTheme.iosRed,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: CupertinoButton.filled(
+                            onPressed: () async {
+                              // Değerleri güncelle
+                              setState(() {
+                                _maxDistance = tempMaxDistance;
+                                _minAge = tempMinAge;
+                                _maxAge = tempMaxAge;
+                                _preferredGender = tempPreferredGender;
+                              });
+
+                              await _saveFilterSettings();
+                              Navigator.pop(context);
+                              _loadUsers();
+                            },
+                            child: const Text('Uygula'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            )),
+      ),
+    );
+  }
+
+  bool _hasActiveFilters() {
+    // Default değerlerden farklı olan filtreler varsa aktif sayılır
+    return _maxDistance < 100.0 || // Mesafe sınırı varsa
+        _minAge > 18 || // Minimum yaş 18'den büyükse
+        _maxAge < 50 || // Maksimum yaş 50'den küçükse
+        _preferredGender != null; // Cinsiyet tercihi varsa
+  }
+
+  Widget _buildFilterSection({
+    required String title,
+    required String subtitle,
+    required Color color,
+    required Widget child,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppTheme.iosDarkTertiaryBackground
+            : AppTheme.iosTertiaryBackground,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: color.withOpacity(0.1),
+          width: 1,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'İptal',
-              style: AppTheme.iosFont.copyWith(color: AppTheme.iosRed),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: AppTheme.iosFontSmall.copyWith(
+              fontWeight: FontWeight.w600,
+              color: isDark
+                  ? AppTheme.iosDarkPrimaryText
+                  : AppTheme.iosPrimaryText,
             ),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              await _saveFilterSettings();
-              Navigator.pop(context);
-              _loadUsers();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.iosBlue,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: AppTheme.iosFontCaption.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
             ),
-            child: const Text('Uygula'),
           ),
+          const SizedBox(height: 16),
+          child,
         ],
       ),
     );

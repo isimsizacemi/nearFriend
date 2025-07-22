@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import '../services/email_service.dart';
@@ -162,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(25),
                   ),
                   child: const Icon(
-                    Icons.people,
+                    CupertinoIcons.person_2_fill,
                     size: 50,
                     color: Colors.white,
                   ),
@@ -246,25 +247,26 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: InputDecoration(
                     labelText: 'Şifre',
                     prefixIcon: Icon(
-                      Icons.lock_outlined,
+                      CupertinoIcons.lock,
                       color: isDark
                           ? AppTheme.iosDarkSecondaryText
                           : AppTheme.iosSecondaryText,
                     ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                        color: isDark
-                            ? AppTheme.iosDarkSecondaryText
-                            : AppTheme.iosSecondaryText,
-                      ),
+                    suffixIcon: CupertinoButton(
+                      padding: EdgeInsets.zero,
                       onPressed: () {
                         setState(() {
                           _obscurePassword = !_obscurePassword;
                         });
                       },
+                      child: Icon(
+                        _obscurePassword
+                            ? CupertinoIcons.eye_slash
+                            : CupertinoIcons.eye,
+                        color: isDark
+                            ? AppTheme.iosDarkSecondaryText
+                            : AppTheme.iosSecondaryText,
+                      ),
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -307,25 +309,26 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: InputDecoration(
                       labelText: 'Şifre Tekrar',
                       prefixIcon: Icon(
-                        Icons.lock_outlined,
+                        CupertinoIcons.lock,
                         color: isDark
                             ? AppTheme.iosDarkSecondaryText
                             : AppTheme.iosSecondaryText,
                       ),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureConfirmPassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          color: isDark
-                              ? AppTheme.iosDarkSecondaryText
-                              : AppTheme.iosSecondaryText,
-                        ),
+                      suffixIcon: CupertinoButton(
+                        padding: EdgeInsets.zero,
                         onPressed: () {
                           setState(() {
                             _obscureConfirmPassword = !_obscureConfirmPassword;
                           });
                         },
+                        child: Icon(
+                          _obscureConfirmPassword
+                              ? CupertinoIcons.eye_slash
+                              : CupertinoIcons.eye,
+                          color: isDark
+                              ? AppTheme.iosDarkSecondaryText
+                              : AppTheme.iosSecondaryText,
+                        ),
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -360,48 +363,43 @@ class _LoginScreenState extends State<LoginScreen> {
                 SizedBox(
                   width: double.infinity,
                   height: 56,
-                  child: ElevatedButton(
+                  child: CupertinoButton.filled(
                     onPressed:
                         _isLoading ? null : (_isLoginMode ? _login : _register),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.iosBlue,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      textStyle: AppTheme.iosFontBold,
-                    ),
+                    borderRadius: BorderRadius.circular(16),
                     child: _isLoading
                         ? const SizedBox(
                             width: 24,
                             height: 24,
-                            child: CircularProgressIndicator(
+                            child: CupertinoActivityIndicator(
                               color: Colors.white,
-                              strokeWidth: 2,
                             ),
                           )
-                        : Text(_isLoginMode ? 'Giriş Yap' : 'Kayıt Ol'),
+                        : Text(
+                            _isLoginMode ? 'Giriş Yap' : 'Kayıt Ol',
+                            style: AppTheme.iosFontBold.copyWith(
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 24),
 
                 // Mod değiştirme butonu
-                TextButton(
+                CupertinoButton(
                   onPressed: () {
                     setState(() {
                       _isLoginMode = !_isLoginMode;
                       _resetForm();
                     });
                   },
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppTheme.iosBlue,
-                    textStyle: AppTheme.iosFontBold,
-                  ),
                   child: Text(
                     _isLoginMode
                         ? 'Hesabınız yok mu? Kayıt olun'
                         : 'Zaten hesabınız var mı? Giriş yapın',
+                    style: AppTheme.iosFontBold.copyWith(
+                      color: AppTheme.iosBlue,
+                    ),
                   ),
                 ),
               ],

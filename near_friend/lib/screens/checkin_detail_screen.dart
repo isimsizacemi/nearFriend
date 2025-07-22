@@ -86,8 +86,8 @@ class _CheckinDetailScreenState extends State<CheckinDetailScreen> {
     return Geolocator.distanceBetween(
       _currentPosition!.latitude,
       _currentPosition!.longitude,
-      _checkin!.location!.latitude,
-      _checkin!.location!.longitude,
+      _checkin!.geoPoint.latitude,
+      _checkin!.geoPoint.longitude,
     );
   }
 
@@ -118,8 +118,8 @@ class _CheckinDetailScreenState extends State<CheckinDetailScreen> {
     if (_checkin?.location == null) return;
 
     try {
-      final latitude = _checkin!.location!.latitude;
-      final longitude = _checkin!.location!.longitude;
+      final latitude = _checkin!.geoPoint.latitude;
+      final longitude = _checkin!.geoPoint.longitude;
       final locationName = _checkin!.locationName;
 
       // Google Maps URL'si oluştur

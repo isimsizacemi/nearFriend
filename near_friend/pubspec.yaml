@@ -57,6 +57,7 @@ dependencies:
   cached_network_image: ^3.2.3
   image_picker: ^0.8.7+5
   permission_handler: ^10.4.3
+  flutter_platform_widgets: ^3.2.0
   
   # HTTP ve API
   http: ^1.1.0
@@ -74,6 +75,7 @@ dependencies:
   # Bildirimler
   flutter_local_notifications: ^15.1.0+1
   google_sign_in: ^6.1.5
+  geoflutterfire2: ^2.3.15
 
 dev_dependencies:
   flutter_test:
@@ -101,6 +103,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/quiz_questions.json
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 
@@ -115,6 +118,16 @@ flutter:
   # "family" key with the font family name, and a "fonts" key with a
   # list giving the asset and other descriptors for the font. For
   # example:
+  fonts:
+    - family: SFPro
+      fonts:
+        - asset: assets/fonts/SFPRODISPLAYREGULAR.otf
+        - asset: assets/fonts/SFPRODISPLAYMEDIUM.otf
+          weight: 500
+        - asset: assets/fonts/SFPRODISPLAYBOLD.otf
+          weight: 700
+        - asset: assets/fonts/SFPRODISPLAYLIGHTITALIC.otf
+          style: italic
   #   - family: Poppins
   #     fonts:
   #       - asset: assets/fonts/Poppins-Regular.ttf
