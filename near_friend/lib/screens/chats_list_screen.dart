@@ -256,10 +256,7 @@ class _ChatsListScreenState extends State<ChatsListScreen>
 
     return ListTile(
       leading: CircleAvatar(
-        backgroundImage: otherUser.photoURL != null
-            ? CachedNetworkImageProvider(otherUser.photoURL!)
-            : const AssetImage('assets/images/default_avatar.png')
-                as ImageProvider,
+        backgroundImage: otherUser.getProfileImageProvider(),
       ),
       title: Text(otherUser.displayName ?? 'İsimsiz Kullanıcı'),
       subtitle: Text(
@@ -284,6 +281,7 @@ class _ChatsListScreenState extends State<ChatsListScreen>
                 style: const TextStyle(color: Colors.white, fontSize: 12),
               ),
             ),
+          // Mesaj durumu ikonu için placeholder (ileride eklenecek)
         ],
       ),
       onTap: () {
@@ -302,6 +300,11 @@ class _ChatsListScreenState extends State<ChatsListScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Toplam okunmamış mesaj sayısını hesapla
+    int totalUnread = 0;
+    for (final chat in _chats) {
+      totalUnread += (chat['unreadCount'] as int? ?? 0);
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mesajlar'),
@@ -314,7 +317,7 @@ class _ChatsListScreenState extends State<ChatsListScreen>
                 children: [
                   const Text('Sohbetler'),
                   const SizedBox(width: 4),
-                  if (_chats.isNotEmpty)
+                  if (totalUnread > 0)
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
@@ -322,7 +325,7 @@ class _ChatsListScreenState extends State<ChatsListScreen>
                         shape: BoxShape.circle,
                       ),
                       child: Text(
-                        _chats.length.toString(),
+                        totalUnread.toString(),
                         style: const TextStyle(fontSize: 12),
                       ),
                     ),

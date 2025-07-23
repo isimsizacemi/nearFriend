@@ -37,7 +37,7 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     _loadUserData();
     _setupMessagesStream();
-    _markChatAsRead();
+    _markChatAsReadAndDelivered();
 
     _scrollController.addListener(() {
       if (_scrollController.position.pixels ==
@@ -100,7 +100,7 @@ class _ChatScreenState extends State<ChatScreen> {
         .orderBy('timestamp', descending: true)
         .limit(_pageSize);
 
-    _messagesSubscription = messagesQuery.snapshots().listen((snapshot) {
+    _messagesSubscription = messagesQuery.snapshots().listen((snapshot) async {
       if (snapshot.docs.isEmpty) {
         if (mounted) {
           setState(() {
@@ -113,9 +113,20 @@ class _ChatScreenState extends State<ChatScreen> {
       final messages =
           snapshot.docs.map((doc) => MessageModel.fromFirestore(doc)).toList();
 
+      // Gelen mesajlar için delivered güncellemesi
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        for (var doc in snapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          if (data['receiverId'] == currentUser.uid &&
+              data['delivered'] != true) {
+            doc.reference.update({'delivered': true});
+          }
+        }
+      }
+
       if (mounted) {
         setState(() {
-          // _messages.clear(); // Bunu kaldırdık
           for (var msg in messages) {
             if (!_messages.any((m) => m.id == msg.id)) {
               _messages.add(msg);
@@ -177,7 +188,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _markChatAsRead() async {
+  Future<void> _markChatAsReadAndDelivered() async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
@@ -187,8 +198,32 @@ class _ChatScreenState extends State<ChatScreen> {
           .collection('chats')
           .doc(chatId)
           .update({'unreadCount_${currentUser.uid}': 0});
+
+      // Tüm karşı tarafın göndermiş olduğu ve delivered=false olan mesajları iletildi olarak işaretle
+      final deliveredQuery = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .where('receiverId', isEqualTo: currentUser.uid)
+          .where('delivered', isEqualTo: false)
+          .get();
+      for (var doc in deliveredQuery.docs) {
+        doc.reference.update({'delivered': true});
+      }
+
+      // Tüm karşı tarafın göndermiş olduğu ve read=false olan mesajları okundu olarak işaretle
+      final readQuery = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .where('receiverId', isEqualTo: currentUser.uid)
+          .where('read', isEqualTo: false)
+          .get();
+      for (var doc in readQuery.docs) {
+        doc.reference.update({'read': true});
+      }
     } catch (e) {
-      print('Sohbet okundu olarak işaretlenirken hata: $e');
+      print('Sohbet okundu/iletildi olarak işaretlenirken hata: $e');
     }
   }
 
@@ -217,6 +252,8 @@ class _ChatScreenState extends State<ChatScreen> {
         content: messageText,
         timestamp: DateTime.now(),
         isRead: false,
+        delivered: true, // Mesaj gönderildiğinde delivered=true
+        read: false,
         messageType: 'text',
       );
 
@@ -252,6 +289,17 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final isMe = message.senderId == currentUser.uid;
 
+    Widget statusIcon = const SizedBox.shrink();
+    if (isMe) {
+      if (message.read) {
+        statusIcon = const Icon(Icons.done_all, color: Colors.amber, size: 16);
+      } else if (message.delivered) {
+        statusIcon = const Icon(Icons.done_all, color: Colors.grey, size: 16);
+      } else {
+        statusIcon = const Icon(Icons.check, color: Colors.grey, size: 16);
+      }
+    }
+
     Widget bubble = Container(
       margin: EdgeInsets.only(
         top: 8,
@@ -270,14 +318,27 @@ class _ChatScreenState extends State<ChatScreen> {
           crossAxisAlignment:
               isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            Text(
-              message.content,
-              style: TextStyle(
-                color: isMe ? Colors.white : Colors.black,
-                fontSize: 16,
-                decoration:
-                    message.checkinId != null ? TextDecoration.underline : null,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Flexible(
+                  child: Text(
+                    message.content,
+                    style: TextStyle(
+                      color: isMe ? Colors.white : Colors.black,
+                      fontSize: 16,
+                      decoration: message.checkinId != null
+                          ? TextDecoration.underline
+                          : null,
+                    ),
+                  ),
+                ),
+                if (isMe) ...[
+                  const SizedBox(width: 6),
+                  statusIcon,
+                ]
+              ],
             ),
             const SizedBox(height: 4),
             Text(

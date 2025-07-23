@@ -219,17 +219,13 @@ class _CheckinScreenState extends State<CheckinScreen> {
       }
 
       // Check-in oluştur
-      final geo = GeoFlutterFire();
-      final myLocation = geo.point(
-        latitude: _currentPosition!.latitude,
-        longitude: _currentPosition!.longitude,
-      );
       final checkinData = {
         'userId': user.uid,
         'userDisplayName': userData['displayName'] ?? user.displayName ?? '',
         'userPhotoURL': userData['photoURL'] ?? user.photoURL,
         'message': _messageController.text.trim(),
-        'location': myLocation.data, // {'geohash': ..., 'geopoint': GeoPoint}
+        'location':
+            GeoPoint(_currentPosition!.latitude, _currentPosition!.longitude),
         'locationName': _locationName,
         'createdAt': FieldValue.serverTimestamp(),
         'likes': [],

@@ -190,10 +190,14 @@ class CheckinModel {
   }
 
   GeoPoint get geoPoint {
-    if (location['geopoint'] is GeoPoint) {
-      return location['geopoint'] as GeoPoint;
+    final loc = location['geopoint'] ?? location;
+    if (loc is GeoPoint) {
+      return loc;
+    } else if (loc is Map) {
+      final lat = (loc['latitude'] as num?)?.toDouble() ?? 0.0;
+      final lng = (loc['longitude'] as num?)?.toDouble() ?? 0.0;
+      return GeoPoint(lat, lng);
     }
-    // Varsayılan değer
     return const GeoPoint(0, 0);
   }
 

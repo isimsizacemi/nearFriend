@@ -12,6 +12,8 @@ class MessageModel {
   final GeoPoint? location;
   final String? checkinId;
   final Map<String, dynamic>? checkinData;
+  final bool delivered;
+  final bool read;
 
   MessageModel({
     required this.id,
@@ -25,10 +27,12 @@ class MessageModel {
     this.location,
     this.checkinId,
     this.checkinData,
+    this.delivered = false,
+    this.read = false,
   });
 
   factory MessageModel.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>;
     return MessageModel(
       id: doc.id,
       senderId: data['senderId'] ?? '',
@@ -41,6 +45,8 @@ class MessageModel {
       location: data['location'],
       checkinId: data['checkinId'],
       checkinData: data['checkinData'],
+      delivered: data['delivered'] ?? false,
+      read: data['read'] ?? false,
     );
   }
 
@@ -56,6 +62,8 @@ class MessageModel {
       'location': location,
       'checkinId': checkinId,
       'checkinData': checkinData,
+      'delivered': delivered,
+      'read': read,
     };
   }
 
@@ -71,6 +79,8 @@ class MessageModel {
     GeoPoint? location,
     String? checkinId,
     Map<String, dynamic>? checkinData,
+    bool? delivered,
+    bool? read,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -84,6 +94,8 @@ class MessageModel {
       location: location ?? this.location,
       checkinId: checkinId ?? this.checkinId,
       checkinData: checkinData ?? this.checkinData,
+      delivered: delivered ?? this.delivered,
+      read: read ?? this.read,
     );
   }
 }
