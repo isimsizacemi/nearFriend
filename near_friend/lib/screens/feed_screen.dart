@@ -11,6 +11,7 @@ import 'package:geoflutterfire2/geoflutterfire2.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'checkin_screen.dart';
+import '../models/user_model.dart';
 
 class FakeDoc implements DocumentSnapshot {
   final Map<String, dynamic> _data;
@@ -495,238 +496,226 @@ class FeedScreenState extends State<FeedScreen> {
         checkin.likes.contains(FirebaseAuth.instance.currentUser?.uid);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CheckinDetailScreen(
-              checkinId: checkin.id,
-              checkin: checkin,
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance
+          .collection('users')
+          .doc(checkin.userId)
+          .get(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Container(
+            margin: const EdgeInsets.symmetric(vertical: 6.0),
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        final user = UserModel.fromFirestore(snapshot.data!);
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CheckinDetailScreen(
+                  checkinId: checkin.id,
+                  checkin: checkin,
+                ),
+              ),
+            );
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 6.0),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? AppTheme.iosDarkSecondaryBackground
+                  : AppTheme.iosSecondaryBackground,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 15,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6.0),
-        decoration: BoxDecoration(
-          color: isDark
-              ? AppTheme.iosDarkSecondaryBackground
-              : AppTheme.iosSecondaryBackground,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 15,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Kullanıcı bilgileri - Kompakt
-              Row(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Profil fotoğrafı - Daha küçük
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppTheme.iosBlue.withOpacity(0.15),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: checkin.userPhotoURL != null
-                          ? Image.network(
-                              checkin.userPhotoURL!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: isDark
-                                      ? AppTheme.iosDarkTertiaryBackground
-                                      : AppTheme.iosTertiaryBackground,
-                                  child: Icon(
-                                    CupertinoIcons.person_fill,
-                                    size: 18,
-                                    color: isDark
-                                        ? AppTheme.iosDarkSecondaryText
-                                        : AppTheme.iosSecondaryText,
-                                  ),
-                                );
-                              },
-                            )
-                          : Container(
-                              color: isDark
-                                  ? AppTheme.iosDarkTertiaryBackground
-                                  : AppTheme.iosTertiaryBackground,
-                              child: Icon(
-                                CupertinoIcons.person_fill,
-                                size: 18,
-                                color: isDark
-                                    ? AppTheme.iosDarkSecondaryText
-                                    : AppTheme.iosSecondaryText,
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Kullanıcı adı - Daha küçük font
-                        Text(
-                          checkin.userDisplayName,
-                          style: AppTheme.iosFontSmall.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: isDark
-                                ? AppTheme.iosDarkPrimaryText
-                                : AppTheme.iosPrimaryText,
+                  // Kullanıcı bilgileri - Kompakt
+                  Row(
+                    children: [
+                      // Profil fotoğrafı
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppTheme.iosBlue.withOpacity(0.15),
+                            width: 1.5,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        // Konum ve mesafe - Tek satırda
-                        Row(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: Image(
+                            image: user.getProfileImageProvider(),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Kullanıcı adı
+                            Text(
+                              user.displayName ?? 'İsimsiz Kullanıcı',
+                              style: AppTheme.iosFontSmall.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? AppTheme.iosDarkPrimaryText
+                                    : AppTheme.iosPrimaryText,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            // Konum ve mesafe
+                            Row(
+                              children: [
+                                Icon(
+                                  CupertinoIcons.location_solid,
+                                  size: 12,
+                                  color: AppTheme.iosBlue,
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    checkin.locationName,
+                                    style: AppTheme.iosFontCaption.copyWith(
+                                      color: AppTheme.iosBlue,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.iosGreen.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    _formatDistance(distance),
+                                    style: AppTheme.iosFontCaption.copyWith(
+                                      color: AppTheme.iosGreen,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Zaman - Daha küçük
+                      Text(
+                        _formatTimeAgo(checkin.createdAt),
+                        style: AppTheme.iosFontCaption.copyWith(
+                          color: isDark
+                              ? AppTheme.iosDarkSecondaryText
+                              : AppTheme.iosSecondaryText,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Mesaj - Daha kompakt
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppTheme.iosDarkTertiaryBackground
+                          : AppTheme.iosTertiaryBackground,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      checkin.message,
+                      style: AppTheme.iosFontSmall.copyWith(
+                        color: isDark
+                            ? AppTheme.iosDarkPrimaryText
+                            : AppTheme.iosPrimaryText,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Etkileşim butonları - Daha kompakt
+                  Row(
+                    children: [
+                      _buildActionButton(
+                        icon: isLiked
+                            ? CupertinoIcons.heart_fill
+                            : CupertinoIcons.heart,
+                        label: '${checkin.likes.length}',
+                        color: isLiked ? AppTheme.iosRed : null,
+                        onPressed: () => _likeCheckin(checkin),
+                      ),
+                      const SizedBox(width: 12),
+                      _buildActionButton(
+                        icon: CupertinoIcons.chat_bubble,
+                        label: '${checkin.comments.length}',
+                        onPressed: () {
+                          // Yorum ekranına git
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      _buildActionButton(
+                        icon: CupertinoIcons.mail,
+                        label: 'DM',
+                        onPressed: () => _sendDMRequest(checkin),
+                      ),
+                      const Spacer(),
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        color: AppTheme.iosBlue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        onPressed: () {
+                          // Paylaş işlevi
+                        },
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              CupertinoIcons.location_solid,
-                              size: 12,
+                              CupertinoIcons.share,
+                              size: 14,
                               color: AppTheme.iosBlue,
                             ),
                             const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                checkin.locationName,
-                                style: AppTheme.iosFontCaption.copyWith(
-                                  color: AppTheme.iosBlue,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppTheme.iosGreen.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                _formatDistance(distance),
-                                style: AppTheme.iosFontCaption.copyWith(
-                                  color: AppTheme.iosGreen,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 10,
-                                ),
+                            Text(
+                              'Paylaş',
+                              style: AppTheme.iosFontCaption.copyWith(
+                                color: AppTheme.iosBlue,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                  // Zaman - Daha küçük
-                  Text(
-                    _formatTimeAgo(checkin.createdAt),
-                    style: AppTheme.iosFontCaption.copyWith(
-                      color: isDark
-                          ? AppTheme.iosDarkSecondaryText
-                          : AppTheme.iosSecondaryText,
-                      fontSize: 10,
-                    ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-
-              // Mesaj - Daha kompakt
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppTheme.iosDarkTertiaryBackground
-                      : AppTheme.iosTertiaryBackground,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  checkin.message,
-                  style: AppTheme.iosFontSmall.copyWith(
-                    color: isDark
-                        ? AppTheme.iosDarkPrimaryText
-                        : AppTheme.iosPrimaryText,
-                    height: 1.3,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Etkileşim butonları - Daha kompakt
-              Row(
-                children: [
-                  _buildActionButton(
-                    icon: isLiked
-                        ? CupertinoIcons.heart_fill
-                        : CupertinoIcons.heart,
-                    label: '${checkin.likes.length}',
-                    color: isLiked ? AppTheme.iosRed : null,
-                    onPressed: () => _likeCheckin(checkin),
-                  ),
-                  const SizedBox(width: 12),
-                  _buildActionButton(
-                    icon: CupertinoIcons.chat_bubble,
-                    label: '${checkin.comments.length}',
-                    onPressed: () {
-                      // Yorum ekranına git
-                    },
-                  ),
-                  const SizedBox(width: 12),
-                  _buildActionButton(
-                    icon: CupertinoIcons.mail,
-                    label: 'DM',
-                    onPressed: () => _sendDMRequest(checkin),
-                  ),
-                  const Spacer(),
-                  CupertinoButton(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    color: AppTheme.iosBlue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    onPressed: () {
-                      // Paylaş işlevi
-                    },
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          CupertinoIcons.share,
-                          size: 14,
-                          color: AppTheme.iosBlue,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Paylaş',
-                          style: AppTheme.iosFontCaption.copyWith(
-                            color: AppTheme.iosBlue,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

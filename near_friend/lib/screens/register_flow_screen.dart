@@ -7,6 +7,7 @@ import '../models/question.dart';
 import '../services/auth_service.dart';
 import '../utils/app_theme.dart';
 import 'main_app.dart';
+import '../utils/university_list.dart';
 
 class RegisterFlowScreen extends StatefulWidget {
   final String email;
@@ -47,19 +48,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
   bool _isLoading = false;
 
   // Seçenekler
-  final List<String> _universities = [
-    'İstanbul Teknik Üniversitesi',
-    'Boğaziçi Üniversitesi',
-    'Orta Doğu Teknik Üniversitesi',
-    'Hacettepe Üniversitesi',
-    'Ankara Üniversitesi',
-    'İstanbul Üniversitesi',
-    'Marmara Üniversitesi',
-    'Yıldız Teknik Üniversitesi',
-    'Ege Üniversitesi',
-    'Dokuz Eylül Üniversitesi',
-  ];
-
   final List<String> _departments = [
     'Bilgisayar Mühendisliği',
     'Elektrik-Elektronik Mühendisliği',
@@ -599,7 +587,7 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
                     ? AppTheme.iosDarkSecondaryBackground
                     : AppTheme.iosSecondaryBackground,
               ),
-              items: _universities.map((university) {
+              items: universityList.map((university) {
                 return DropdownMenuItem(
                   value: university,
                   child: Text(university),

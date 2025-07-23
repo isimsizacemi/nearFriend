@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../services/auth_service.dart';
 import '../utils/app_theme.dart';
 import '../models/user_model.dart';
+import '../utils/university_list.dart';
 
 // Move these to the top of the file, outside the class
 const List<String> femaleAvatars = [
@@ -37,71 +38,6 @@ const List<String> maleAvatars = [
 const List<String> allAvatars = [
   ...femaleAvatars,
   ...maleAvatars,
-];
-
-const List<String> universityList = [
-  'İstanbul Teknik Üniversitesi',
-  'Boğaziçi Üniversitesi',
-  'Orta Doğu Teknik Üniversitesi',
-  'Hacettepe Üniversitesi',
-  'Ankara Üniversitesi',
-  'İstanbul Üniversitesi',
-  'Marmara Üniversitesi',
-  'Yıldız Teknik Üniversitesi',
-  'Ege Üniversitesi',
-  'Dokuz Eylül Üniversitesi',
-  'Gazi Üniversitesi',
-  'Akdeniz Üniversitesi',
-  'Karadeniz Teknik Üniversitesi',
-  'Selçuk Üniversitesi',
-  'Çukurova Üniversitesi',
-  'Uludağ Üniversitesi',
-  'Atatürk Üniversitesi',
-  'Erciyes Üniversitesi',
-  'Sakarya Üniversitesi',
-  'Pamukkale Üniversitesi',
-  'Kocaeli Üniversitesi',
-  'Eskişehir Osmangazi Üniversitesi',
-  'Muğla Sıtkı Koçman Üniversitesi',
-  'Mersin Üniversitesi',
-  'Ondokuz Mayıs Üniversitesi',
-  'Fırat Üniversitesi',
-  'Dicle Üniversitesi',
-  'Trakya Üniversitesi',
-  'Çanakkale Onsekiz Mart Üniversitesi',
-  'Gaziantep Üniversitesi',
-  'Süleyman Demirel Üniversitesi',
-  'Adnan Menderes Üniversitesi',
-  'Balıkesir Üniversitesi',
-  'Afyon Kocatepe Üniversitesi',
-  'Kırıkkale Üniversitesi',
-  'Kastamonu Üniversitesi',
-  'Bartın Üniversitesi',
-  'Aksaray Üniversitesi',
-  'Bilecik Şeyh Edebali Üniversitesi',
-  'Bingöl Üniversitesi',
-  'Bitlis Eren Üniversitesi',
-  'Bolu Abant İzzet Baysal Üniversitesi',
-  'Burdur Mehmet Akif Ersoy Üniversitesi',
-  'Çankırı Karatekin Üniversitesi',
-  'Gümüşhane Üniversitesi',
-  'Hakkari Üniversitesi',
-  'Iğdır Üniversitesi',
-  'Karamanoğlu Mehmetbey Üniversitesi',
-  'Kırklareli Üniversitesi',
-  'Kilis 7 Aralık Üniversitesi',
-  'Nevşehir Hacı Bektaş Veli Üniversitesi',
-  'Niğde Ömer Halisdemir Üniversitesi',
-  'Osmaniye Korkut Ata Üniversitesi',
-  'Rize Recep Tayyip Erdoğan Üniversitesi',
-  'Siirt Üniversitesi',
-  'Sinop Üniversitesi',
-  'Şırnak Üniversitesi',
-  'Tunceli Munzur Üniversitesi',
-  'Uşak Üniversitesi',
-  'Yalova Üniversitesi',
-  'Yozgat Bozok Üniversitesi',
-  'Diğer',
 ];
 
 const List<String> departmentList = [
