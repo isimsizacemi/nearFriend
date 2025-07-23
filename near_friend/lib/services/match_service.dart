@@ -10,113 +10,29 @@ class MatchService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Yakındaki kullanıcıları getir
-  Future<List<UserModel>> getNearbyUsers({
-    required double maxDistance,
-    required int minAge,
-    required int maxAge,
-    String? preferredGender,
-    Position? currentPosition,
-  }) async {
+  Future<List<UserModel>> getNearbyUsers() async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) return [];
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return [];
 
-      // Eğer güncel konum verilmişse onu kullan, yoksa Firestore'dan al
-      GeoPoint? currentUserLocation;
-      if (currentPosition != null) {
-        currentUserLocation =
-            GeoPoint(currentPosition.latitude, currentPosition.longitude);
-      } else {
-        final currentUserDoc =
-            await _firestore.collection('users').doc(currentUser.uid).get();
-        if (!currentUserDoc.exists) return [];
-        final currentUserData = currentUserDoc.data()!;
-        currentUserLocation = currentUserData['currentLocation'] as GeoPoint?;
-        if (currentUserLocation == null) return [];
-      }
+      final yesterday = DateTime.now().subtract(const Duration(days: 1));
 
-      final now = DateTime.now();
-      final yesterday = now.subtract(const Duration(hours: 24));
-      // Diğer filtreler
-      Query usersQuery = _firestore
+      final querySnapshot = await FirebaseFirestore.instance
           .collection('users')
-          .where('hasCreatedProfile', isEqualTo: true)
           .where('isActive', isEqualTo: true)
-          .where('lastActiveAt',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(yesterday));
-      if (minAge > 18 || maxAge < 50) {
-        usersQuery = usersQuery.where('age', isGreaterThanOrEqualTo: minAge);
-      }
-      if (preferredGender != null) {
-        usersQuery = usersQuery.where('gender', isEqualTo: preferredGender);
-      }
+          .where('hasCreatedProfile', isEqualTo: true)
+          .get();
 
-      // Eğer maxDistance çok büyükse (100km+), konum filtresi olmadan devam
-      if (maxDistance >= 100000) {
-        final snapshot = await usersQuery.get();
-        var allUsers =
-            snapshot.docs.map((doc) => UserModel.fromFirestore(doc)).toList();
-        allUsers =
-            allUsers.where((user) => user.id != currentUser.uid).toList();
-        // Blocked, matched, pending kullanıcıları filtrele
-        final currentUserDoc =
-            await _firestore.collection('users').doc(currentUser.uid).get();
-        final currentUserData = currentUserDoc.data()!;
-        final currentUserBlocked =
-            List<String>.from(currentUserData['blockedUsers'] ?? []);
-        final currentUserMatched =
-            List<String>.from(currentUserData['matchedUsers'] ?? []);
-        final currentUserPending =
-            List<String>.from(currentUserData['pendingMatches'] ?? []);
-        allUsers = allUsers
-            .where((user) =>
-                !currentUserBlocked.contains(user.id) &&
-                !currentUserMatched.contains(user.id) &&
-                !currentUserPending.contains(user.id))
-            .toList();
-        return allUsers;
-      }
-
-      // GeoFlutterFire ile konum bazlı sorgu
-      final geo = GeoFlutterFire();
-      final center = geo.point(
-        latitude: currentUserLocation.latitude,
-        longitude: currentUserLocation.longitude,
-      );
-      final stream =
-          geo.collection(collectionRef: _firestore.collection('users')).within(
-                center: center,
-                radius: maxDistance / 1000, // metreyi km'ye çevir
-                field: 'location',
-                strictMode: true,
-              );
-      final snapshot = await stream.first;
-      var allUsers =
-          snapshot.map((doc) => UserModel.fromFirestore(doc)).toList();
-      allUsers = allUsers.where((user) => user.id != currentUser.uid).toList();
-      // Son 24 saat aktif olanları filtrele (GeoFlutterFire ile sorguda Firestore filtre uygulanamadığı için burada yapıyoruz)
-      allUsers = allUsers
-          .where((user) => user.lastActiveAt.isAfter(yesterday))
-          .toList();
-      // Blocked, matched, pending kullanıcıları filtrele
-      final currentUserDoc =
-          await _firestore.collection('users').doc(currentUser.uid).get();
-      final currentUserData = currentUserDoc.data()!;
-      final currentUserBlocked =
-          List<String>.from(currentUserData['blockedUsers'] ?? []);
-      final currentUserMatched =
-          List<String>.from(currentUserData['matchedUsers'] ?? []);
-      final currentUserPending =
-          List<String>.from(currentUserData['pendingMatches'] ?? []);
-      allUsers = allUsers
+      final users = querySnapshot.docs
+          .map((doc) => UserModel.fromFirestore(doc))
           .where((user) =>
-              !currentUserBlocked.contains(user.id) &&
-              !currentUserMatched.contains(user.id) &&
-              !currentUserPending.contains(user.id))
+              user.id != FirebaseAuth.instance.currentUser?.uid &&
+              user.lastActiveAt?.isAfter(yesterday) == true)
           .toList();
-      return allUsers;
+
+      return users;
     } catch (e) {
-      print('Yakındaki kullanıcılar alınırken hata: $e');
+      print('Yakındaki kullanıcılar yüklenirken hata: $e');
       return [];
     }
   }

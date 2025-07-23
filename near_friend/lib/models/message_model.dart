@@ -10,6 +10,8 @@ class MessageModel {
   final String messageType; // 'text', 'image', 'location'
   final String? imageURL;
   final GeoPoint? location;
+  final String? checkinId;
+  final Map<String, dynamic>? checkinData;
 
   MessageModel({
     required this.id,
@@ -21,6 +23,8 @@ class MessageModel {
     required this.messageType,
     this.imageURL,
     this.location,
+    this.checkinId,
+    this.checkinData,
   });
 
   factory MessageModel.fromFirestore(DocumentSnapshot doc) {
@@ -35,6 +39,8 @@ class MessageModel {
       messageType: data['messageType'] ?? 'text',
       imageURL: data['imageURL'],
       location: data['location'],
+      checkinId: data['checkinId'],
+      checkinData: data['checkinData'],
     );
   }
 
@@ -48,6 +54,8 @@ class MessageModel {
       'messageType': messageType,
       'imageURL': imageURL,
       'location': location,
+      'checkinId': checkinId,
+      'checkinData': checkinData,
     };
   }
 
@@ -61,6 +69,8 @@ class MessageModel {
     String? messageType,
     String? imageURL,
     GeoPoint? location,
+    String? checkinId,
+    Map<String, dynamic>? checkinData,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -72,6 +82,8 @@ class MessageModel {
       messageType: messageType ?? this.messageType,
       imageURL: imageURL ?? this.imageURL,
       location: location ?? this.location,
+      checkinId: checkinId ?? this.checkinId,
+      checkinData: checkinData ?? this.checkinData,
     );
   }
 }

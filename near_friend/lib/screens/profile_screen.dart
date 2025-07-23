@@ -8,6 +8,7 @@ import '../utils/app_theme.dart';
 import 'profile_edit_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../models/user_model.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -175,6 +176,9 @@ class ProfileScreenState extends State<ProfileScreen>
   void _logout() async {
     try {
       await FirebaseAuth.instance.signOut();
+      // Tüm cache'i temizle
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
       if (mounted) {
         // Önce snackbar göster
         ScaffoldMessenger.of(context).showSnackBar(
@@ -211,12 +215,48 @@ class ProfileScreenState extends State<ProfileScreen>
     }
   }
 
+  void _navigateToEditProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (!userDoc.exists) return;
+
+      if (!mounted) return;
+
+      final userModel = UserModel.fromFirestore(userDoc);
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ProfileEditScreen(user: userModel),
+        ),
+      );
+
+      if (result == true) {
+        _loadUserData();
+        _loadUserPosts();
+      }
+    } catch (e) {
+      print('Profil düzenleme ekranına giderken hata: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    if (user == null)
+    if (user == null) {
+      // Kullanıcı yoksa otomatik olarak login ekranına yönlendir
+      Future.microtask(() {
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/login', (route) => false);
+      });
       return Scaffold(
         backgroundColor:
             isDark ? AppTheme.iosDarkBackground : AppTheme.iosBackground,
@@ -231,6 +271,7 @@ class ProfileScreenState extends State<ProfileScreen>
           ),
         ),
       );
+    }
 
     return Scaffold(
       backgroundColor:
@@ -350,15 +391,7 @@ class ProfileScreenState extends State<ProfileScreen>
                   CupertinoButton(
                     padding: const EdgeInsets.all(8),
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ProfileEditScreen(),
-                        ),
-                      ).then((_) {
-                        // Profil düzenlendikten sonra verileri yenile
-                        _loadUserData();
-                      });
+                      _navigateToEditProfile();
                     },
                     child: Icon(
                       CupertinoIcons.pencil,
@@ -564,37 +597,13 @@ class ProfileScreenState extends State<ProfileScreen>
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(32),
-                        child: _userData?['photoURL'] != null
-                            ? Image.network(
-                                _userData!['photoURL'],
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: isDark
-                                        ? AppTheme.iosDarkTertiaryBackground
-                                        : AppTheme.iosTertiaryBackground,
-                                    child: Icon(
-                                      CupertinoIcons.person_fill,
-                                      size: 32,
-                                      color: isDark
-                                          ? AppTheme.iosDarkSecondaryText
-                                          : AppTheme.iosSecondaryText,
-                                    ),
-                                  );
-                                },
-                              )
-                            : Container(
-                                color: isDark
-                                    ? AppTheme.iosDarkTertiaryBackground
-                                    : AppTheme.iosTertiaryBackground,
-                                child: Icon(
-                                  CupertinoIcons.person_fill,
-                                  size: 32,
-                                  color: isDark
-                                      ? AppTheme.iosDarkSecondaryText
-                                      : AppTheme.iosSecondaryText,
-                                ),
-                              ),
+                        child: _userData?['photoURL'] != null &&
+                                (_userData!['photoURL'] as String)
+                                    .startsWith('assets/')
+                            ? Image.asset(_userData!['photoURL'],
+                                fit: BoxFit.cover)
+                            : Image.asset('assets/images/default_avatar.png',
+                                fit: BoxFit.cover),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -603,9 +612,7 @@ class ProfileScreenState extends State<ProfileScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _userData?['displayName'] ??
-                                user?.displayName ??
-                                'İsimsiz',
+                            _userData?['displayName'] ?? 'İsimsiz Kullanıcı',
                             style: AppTheme.iosFontLarge.copyWith(
                               color: isDark
                                   ? AppTheme.iosDarkPrimaryText

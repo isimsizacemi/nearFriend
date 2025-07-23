@@ -76,6 +76,7 @@ dependencies:
   flutter_local_notifications: ^15.1.0+1
   google_sign_in: ^6.1.5
   geoflutterfire2: ^2.3.15
+  swipe_cards: ^2.0.0
 
 dev_dependencies:
   flutter_test:
@@ -104,6 +105,26 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/quiz_questions.json
+    - assets/images/avatars/female1.png
+    - assets/images/avatars/female2.png
+    - assets/images/avatars/female3.png
+    - assets/images/avatars/female4.png
+    - assets/images/avatars/female5.png
+    - assets/images/avatars/female6.png
+    - assets/images/avatars/female7.png
+    - assets/images/avatars/female8.png
+    - assets/images/avatars/female9.png
+    - assets/images/avatars/female10.png
+    - assets/images/avatars/male1.png
+    - assets/images/avatars/male2.png
+    - assets/images/avatars/male3.png
+    - assets/images/avatars/male4.png
+    - assets/images/avatars/male5.png
+    - assets/images/avatars/male6.png
+    - assets/images/avatars/male7.png
+    - assets/images/avatars/male8.png
+    - assets/images/avatars/male9.png
+    - assets/images/avatars/male10.png
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 

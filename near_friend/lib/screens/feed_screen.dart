@@ -10,6 +10,7 @@ import 'checkin_detail_screen.dart';
 import 'package:geoflutterfire2/geoflutterfire2.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'checkin_screen.dart';
 
 class FakeDoc implements DocumentSnapshot {
   final Map<String, dynamic> _data;
@@ -57,6 +58,17 @@ class FeedScreenState extends State<FeedScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadNearbyCheckins(initial: true);
     });
+  }
+
+  // Add this function to handle navigation to CheckinScreen
+  Future<void> _goToCheckinScreen() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CheckinScreen()),
+    );
+    if (result == true) {
+      _loadNearbyCheckins(initial: true);
+    }
   }
 
   @override
@@ -402,7 +414,11 @@ class FeedScreenState extends State<FeedScreen> {
 
       if (chatDoc.exists) {
         // Chat zaten var, otomatik mesaj gönder
-        await FirebaseFirestore.instance.collection('messages').add({
+        await FirebaseFirestore.instance
+            .collection('chats')
+            .doc(chatIdString)
+            .collection('messages')
+            .add({
           'senderId': currentUser.uid,
           'receiverId': checkin.userId,
           'content': 'Şu check-in\'i gördüm, selam',
@@ -806,6 +822,8 @@ class FeedScreenState extends State<FeedScreen> {
 
   @override
   Widget build(BuildContext context) {
+    print(
+        'FeedScreen build çalıştı, isLoading:  [32m [1m [4m [7m$_isLoading [0m, checkins: ${_checkins.length}');
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final content = SafeArea(
@@ -950,6 +968,10 @@ class FeedScreenState extends State<FeedScreen> {
         backgroundColor:
             isDark ? AppTheme.iosDarkBackground : AppTheme.iosBackground,
         body: content,
+        floatingActionButton: FloatingActionButton(
+          onPressed: _goToCheckinScreen,
+          child: const Icon(Icons.add),
+        ),
       );
     } else {
       return content;

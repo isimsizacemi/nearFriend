@@ -7,6 +7,7 @@ import 'package:geocoding/geocoding.dart';
 import '../services/auth_service.dart';
 import '../utils/app_theme.dart';
 import 'package:geoflutterfire2/geoflutterfire2.dart';
+import 'main_app.dart'; // Correct import for MainApp
 
 class CheckinScreen extends StatefulWidget {
   const CheckinScreen({super.key});
@@ -285,8 +286,11 @@ class _CheckinScreenState extends State<CheckinScreen> {
         await Future.delayed(const Duration(milliseconds: 1500));
 
         if (mounted) {
-          // Ana ekrana git
-          Navigator.of(context).pop();
+          // Ana akışa yönlendir
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const MainApp()),
+            (route) => false,
+          );
         }
       }
     } catch (e) {
