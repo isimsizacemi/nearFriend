@@ -89,6 +89,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^2.0.0
+  flutter_launcher_icons: ^0.13.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -152,3 +153,21 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "nearFriend_logo.png.png"
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "nearFriend_logo.png.png"
+    background_color: "#000000"
+    theme_color: "#007AFF"
+  windows:
+    generate: true
+    image_path: "nearFriend_logo.png.png"
+    icon_size: 48
+  macos:
+    generate: true
+    image_path: "nearFriend_logo.png.png"
