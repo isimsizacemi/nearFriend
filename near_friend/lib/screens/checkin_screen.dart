@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
+import 'package:location/location.dart';
 import '../services/auth_service.dart';
+import '../services/geocoding_service.dart';
+import '../services/time_service.dart';
 import '../utils/app_theme.dart';
-import 'package:geoflutterfire2/geoflutterfire2.dart';
-import 'main_app.dart'; // Correct import for MainApp
+import '../utils/location_debug.dart';
+import '../services/time_service.dart';
+import 'main_app.dart';
 
 class CheckinScreen extends StatefulWidget {
   const CheckinScreen({super.key});
@@ -20,12 +22,11 @@ class _CheckinScreenState extends State<CheckinScreen> {
   final _messageController = TextEditingController();
   final _authService = AuthService();
 
-  Position? _currentPosition;
+  LocationData? _currentPosition;
   String _locationName = '';
   bool _isLoading = false;
   bool _isLocationLoading = true;
 
-  // Görünürlük ayarları
   bool _isPublic = true;
   String _selectedGender = '';
   int _minAge = 18;
@@ -33,7 +34,6 @@ class _CheckinScreenState extends State<CheckinScreen> {
   final List<String> _selectedUniversities = [];
   final List<String> _selectedInterests = [];
 
-  // Seçenekler
   final List<String> _universities = [
     'İstanbul Teknik Üniversitesi',
     'Boğaziçi Üniversitesi',
@@ -87,12 +87,67 @@ class _CheckinScreenState extends State<CheckinScreen> {
   Future<void> _getCurrentLocation() async {
     if (_disposed) return;
 
+    print('🔄 CheckinScreen: Konum alma işlemi başlatılıyor...');
+
+    final debugResults = await LocationDebugger.testLocationService();
+    print('🔍 CheckinScreen: Debug sonuçları: $debugResults');
+
+    if (debugResults['success'] == true) {
+      final locationData = debugResults['locationData'];
+      if (locationData != null && !_disposed && mounted) {
+        setState(() {
+          _currentPosition = LocationData.fromMap({
+            'latitude': locationData['latitude'],
+            'longitude': locationData['longitude'],
+            'accuracy': locationData['accuracy'],
+            'altitude': locationData['altitude'],
+            'heading': locationData['heading'],
+            'speed': locationData['speed'],
+            'speedAccuracy': locationData['speedAccuracy'],
+            'time': locationData['time'],
+          });
+          _locationName = 'Adres çözümleniyor...';
+          _isLocationLoading = false;
+        });
+
+        try {
+          final address = await GeocodingService.getAddressFromCoordinates(
+            locationData['latitude'],
+            locationData['longitude'],
+          );
+          if (!_disposed && mounted) {
+            setState(() {
+              _locationName = address;
+            });
+          }
+        } catch (e) {
+          print('⚠️ CheckinScreen: Geocoding hatası: $e');
+          if (!_disposed && mounted) {
+            setState(() {
+              _locationName =
+                  'Lat: ${locationData['latitude'].toStringAsFixed(4)}, '
+                  'Lng: ${locationData['longitude'].toStringAsFixed(4)}';
+            });
+          }
+        }
+
+        print('✅ CheckinScreen: Konum başarıyla ayarlandı: $_locationName');
+        return;
+      }
+    }
+
+    print('⚠️ CheckinScreen: Debug başarısız, basit yöntem deneniyor...');
+
     try {
-      // Konum izni kontrol et
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
+      Location location = Location();
+
+      bool serviceEnabled = await location.serviceEnabled();
+      if (!serviceEnabled) {
+        print(
+            '🚨 CheckinScreen: Konum servisi kapalı, açılmaya çalışılıyor...');
+        serviceEnabled = await location.requestService();
+        if (!serviceEnabled) {
+          print('❌ CheckinScreen: Konum servisi açılamadı');
           if (!_disposed && mounted) {
             setState(() => _isLocationLoading = false);
           }
@@ -100,46 +155,66 @@ class _CheckinScreenState extends State<CheckinScreen> {
         }
       }
 
-      if (permission == LocationPermission.deniedForever) {
-        if (!_disposed && mounted) {
-          setState(() => _isLocationLoading = false);
+      PermissionStatus permissionGranted = await location.hasPermission();
+      if (permissionGranted == PermissionStatus.denied) {
+        print('🚨 CheckinScreen: Konum izni yok, isteniyor...');
+        permissionGranted = await location.requestPermission();
+        if (permissionGranted != PermissionStatus.granted) {
+          print('❌ CheckinScreen: Konum izni alınamadı: $permissionGranted');
+          if (!_disposed && mounted) {
+            setState(() => _isLocationLoading = false);
+          }
+          return;
         }
-        return;
       }
 
-      // Mevcut konumu al
-      _currentPosition = await Geolocator.getCurrentPosition();
+      print('📍 CheckinScreen: Konum alınıyor...');
+      _currentPosition = await location.getLocation();
+      print(
+          '✅ CheckinScreen: Konum alındı: ${_currentPosition?.latitude}, ${_currentPosition?.longitude}');
 
-      // Konum adını al
       if (_currentPosition != null && !_disposed && mounted) {
-        try {
-          final placemarks = await placemarkFromCoordinates(
-            _currentPosition!.latitude,
-            _currentPosition!.longitude,
-          );
+        setState(() {
+          _locationName = 'Adres çözümleniyor...';
+          _isLocationLoading = false;
+        });
 
-          if (placemarks.isNotEmpty && !_disposed && mounted) {
-            final placemark = placemarks.first;
+        try {
+          final address = await GeocodingService.getAddressFromCoordinates(
+            _currentPosition!.latitude!,
+            _currentPosition!.longitude!,
+          );
+          if (!_disposed && mounted) {
             setState(() {
-              _locationName =
-                  '${placemark.street ?? ''}, ${placemark.locality ?? ''}';
-            });
-          } else if (!_disposed && mounted) {
-            setState(() {
-              _locationName = 'Konum bilgisi alınamadı';
+              _locationName = address;
             });
           }
         } catch (e) {
-          print('Konum adı alınırken hata: $e');
+          print('⚠️ CheckinScreen: Geocoding hatası: $e');
           if (!_disposed && mounted) {
             setState(() {
-              _locationName = 'Konum bilgisi alınamadı';
+              _locationName =
+                  'Lat: ${_currentPosition!.latitude!.toStringAsFixed(4)}, '
+                  'Lng: ${_currentPosition!.longitude!.toStringAsFixed(4)}';
             });
           }
         }
+
+        print('✅ CheckinScreen: Konum adı ayarlandı: $_locationName');
       }
-    } catch (e) {
-      print('Konum alınırken hata: $e');
+    } catch (e, stackTrace) {
+      print('❌ CheckinScreen: Konum alınırken hata: $e');
+      print('📋 CheckinScreen: Stack trace: $stackTrace');
+
+      if (!_disposed && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Konum alınamadı: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     } finally {
       if (!_disposed && mounted) {
         setState(() => _isLocationLoading = false);
@@ -182,7 +257,6 @@ class _CheckinScreenState extends State<CheckinScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Kullanıcı bilgilerini al
       Map<String, dynamic> userData = {};
       try {
         final userDoc = await FirebaseFirestore.instance
@@ -197,7 +271,6 @@ class _CheckinScreenState extends State<CheckinScreen> {
         print('Kullanıcı verileri alınırken hata: $e');
       }
 
-      // Eğer userData boşsa temel bilgileri kullan
       if (userData.isEmpty) {
         userData = {
           'displayName': user.displayName ?? 'İsimsiz',
@@ -206,7 +279,6 @@ class _CheckinScreenState extends State<CheckinScreen> {
         };
       }
 
-      // Görünürlük ayarlarını hazırla
       Map<String, dynamic> privacySettings = {};
       if (!_isPublic) {
         privacySettings = {
@@ -218,40 +290,40 @@ class _CheckinScreenState extends State<CheckinScreen> {
         };
       }
 
-      // Check-in oluştur
+      final realTimestamp = await TimeService.getCurrentTime();
+
       final checkinData = {
         'userId': user.uid,
         'userDisplayName': userData['displayName'] ?? user.displayName ?? '',
         'userPhotoURL': userData['photoURL'] ?? user.photoURL,
         'message': _messageController.text.trim(),
         'location':
-            GeoPoint(_currentPosition!.latitude, _currentPosition!.longitude),
+            GeoPoint(_currentPosition!.latitude!, _currentPosition!.longitude!),
         'locationName': _locationName,
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt':
+            Timestamp.fromDate(realTimestamp), // İnternetten alınan saat
         'likes': [],
         'comments': [],
         'privacySettings': privacySettings,
         'isActive': true,
       };
 
-      // Check-in oluştur
       final checkinDoc = await FirebaseFirestore.instance
           .collection('checkins')
           .add(checkinData);
 
-      // Kullanıcının konumunu güncelle
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .update({
         'currentLocation':
-            GeoPoint(_currentPosition!.latitude, _currentPosition!.longitude),
-        'lastActiveAt': FieldValue.serverTimestamp(),
+            GeoPoint(_currentPosition!.latitude!, _currentPosition!.longitude!),
+        'lastActiveAt':
+            Timestamp.fromDate(realTimestamp), // İnternetten alınan saat
         'isActive': true,
       });
 
       if (mounted) {
-        // Başarı mesajı göster
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -278,15 +350,17 @@ class _CheckinScreenState extends State<CheckinScreen> {
           ),
         );
 
-        // Kısa bir bekleme sonrası ana ekrana git
-        await Future.delayed(const Duration(milliseconds: 1500));
-
         if (mounted) {
-          // Ana akışa yönlendir
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const MainApp()),
-            (route) => false,
-          );
+          try {
+            Navigator.of(context)
+                .pushNamedAndRemoveUntil('/', (route) => false);
+          } catch (e) {
+            print('❌ Navigator hatası: $e');
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const MainApp()),
+              (route) => false,
+            );
+          }
         }
       }
     } catch (e) {
@@ -304,7 +378,7 @@ class _CheckinScreenState extends State<CheckinScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Check-in paylaşılırken bir hata oluştu. Lütfen tekrar deneyin.',
+                    'Check-in paylaşılırken hata oluştu: $e',
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -314,9 +388,23 @@ class _CheckinScreenState extends State<CheckinScreen> {
             behavior: SnackBarBehavior.floating,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 5),
           ),
         );
+
+        await Future.delayed(const Duration(milliseconds: 1000));
+        if (mounted) {
+          try {
+            Navigator.of(context)
+                .pushNamedAndRemoveUntil('/', (route) => false);
+          } catch (e) {
+            print('❌ Hata durumunda Navigator hatası: $e');
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const MainApp()),
+              (route) => false,
+            );
+          }
+        }
       }
     } finally {
       if (mounted) {
@@ -335,7 +423,6 @@ class _CheckinScreenState extends State<CheckinScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // iOS Style Header - Kompakt
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -408,14 +495,12 @@ class _CheckinScreenState extends State<CheckinScreen> {
               ),
             ),
 
-            // Content
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Konum Bilgisi - Kompakt
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -477,7 +562,6 @@ class _CheckinScreenState extends State<CheckinScreen> {
 
                     const SizedBox(height: 16),
 
-                    // Mesaj Alanı - Kompakt
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -568,7 +652,6 @@ class _CheckinScreenState extends State<CheckinScreen> {
 
                     const SizedBox(height: 16),
 
-                    // Görünürlük Ayarları - Kompakt
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -675,7 +758,6 @@ class _CheckinScreenState extends State<CheckinScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Paylaş Butonu - Kompakt
                     SizedBox(
                       width: double.infinity,
                       height: 56,

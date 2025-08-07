@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // iOS Light Theme Colors
   static const Color iosBlue = Color(0xFF007AFF);
   static const Color iosGreen = Color(0xFF34C759);
   static const Color iosRed = Color(0xFFFF3B30);
@@ -10,27 +9,22 @@ class AppTheme {
   static const Color iosPink = Color(0xFFFF2D92);
   static const Color iosYellow = Color(0xFFFFCC02);
 
-  // iOS Light Background Colors
   static const Color iosBackground = Color(0xFFF2F2F7);
   static const Color iosSecondaryBackground = Color(0xFFFFFFFF);
   static const Color iosTertiaryBackground = Color(0xFFF2F2F7);
 
-  // iOS Light Text Colors
   static const Color iosPrimaryText = Color(0xFF000000);
   static const Color iosSecondaryText = Color(0xFF8E8E93);
   static const Color iosTertiaryText = Color(0xFFC7C7CC);
 
-  // iOS Dark Theme Colors (same accent colors)
   static const Color iosDarkBackground = Color(0xFF000000);
   static const Color iosDarkSecondaryBackground = Color(0xFF1C1C1E);
   static const Color iosDarkTertiaryBackground = Color(0xFF2C2C2E);
 
-  // iOS Dark Text Colors
   static const Color iosDarkPrimaryText = Color(0xFFFFFFFF);
   static const Color iosDarkSecondaryText = Color(0xFF8E8E93);
   static const Color iosDarkTertiaryText = Color(0xFF48484A);
 
-  // iOS Style Font - SFPro
   static TextStyle get iosFont => const TextStyle(
         fontFamily: 'SFPro',
         fontSize: 17,
@@ -73,14 +67,12 @@ class AppTheme {
         letterSpacing: 0,
       );
 
-  // Light Theme
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
       fontFamily: 'SFPro',
 
-      // Color Scheme
       colorScheme: const ColorScheme.light(
         primary: iosBlue,
         secondary: iosGreen,
@@ -94,7 +86,6 @@ class AppTheme {
         onError: Colors.white,
       ),
 
-      // App Bar Theme
       appBarTheme: AppBarTheme(
         backgroundColor: iosSecondaryBackground,
         foregroundColor: iosPrimaryText,
@@ -104,8 +95,7 @@ class AppTheme {
         iconTheme: const IconThemeData(color: iosBlue),
       ),
 
-      // Card Theme
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: iosSecondaryBackground,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -114,7 +104,6 @@ class AppTheme {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
 
-      // Elevated Button Theme
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: iosBlue,
@@ -128,7 +117,6 @@ class AppTheme {
         ),
       ),
 
-      // Text Button Theme
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: iosBlue,
@@ -140,7 +128,6 @@ class AppTheme {
         ),
       ),
 
-      // Input Decoration Theme
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: iosTertiaryBackground,
@@ -161,7 +148,6 @@ class AppTheme {
         hintStyle: iosFont.copyWith(color: iosSecondaryText),
       ),
 
-      // Bottom Navigation Bar Theme
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: iosSecondaryBackground,
         selectedItemColor: iosBlue,
@@ -170,14 +156,12 @@ class AppTheme {
         elevation: 0,
       ),
 
-      // List Tile Theme
       listTileTheme: ListTileThemeData(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         titleTextStyle: iosFontBold,
         subtitleTextStyle: iosFontSmall.copyWith(color: iosSecondaryText),
       ),
 
-      // Icon Theme
       iconTheme: const IconThemeData(
         color: iosBlue,
         size: 24,
@@ -185,14 +169,12 @@ class AppTheme {
     );
   }
 
-  // Dark Theme
   static ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       fontFamily: 'SFPro',
 
-      // Color Scheme
       colorScheme: const ColorScheme.dark(
         primary: iosBlue,
         secondary: iosGreen,
@@ -206,7 +188,6 @@ class AppTheme {
         onError: Colors.white,
       ),
 
-      // App Bar Theme
       appBarTheme: AppBarTheme(
         backgroundColor: iosDarkSecondaryBackground,
         foregroundColor: iosDarkPrimaryText,
@@ -216,8 +197,7 @@ class AppTheme {
         iconTheme: const IconThemeData(color: iosBlue),
       ),
 
-      // Card Theme
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: iosDarkSecondaryBackground,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -226,7 +206,6 @@ class AppTheme {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
 
-      // Elevated Button Theme
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: iosBlue,
@@ -240,7 +219,6 @@ class AppTheme {
         ),
       ),
 
-      // Text Button Theme
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: iosBlue,
@@ -252,7 +230,6 @@ class AppTheme {
         ),
       ),
 
-      // Input Decoration Theme
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: iosDarkTertiaryBackground,
@@ -273,7 +250,6 @@ class AppTheme {
         hintStyle: iosFont.copyWith(color: iosDarkSecondaryText),
       ),
 
-      // Bottom Navigation Bar Theme
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: iosDarkSecondaryBackground,
         selectedItemColor: iosBlue,
@@ -282,14 +258,12 @@ class AppTheme {
         elevation: 0,
       ),
 
-      // List Tile Theme
       listTileTheme: ListTileThemeData(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         titleTextStyle: iosFontBold,
         subtitleTextStyle: iosFontSmall.copyWith(color: iosDarkSecondaryText),
       ),
 
-      // Icon Theme
       iconTheme: const IconThemeData(
         color: iosBlue,
         size: 24,

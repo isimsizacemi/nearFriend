@@ -34,7 +34,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Login işlemi
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -75,7 +74,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Register işlemi
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -88,7 +86,6 @@ class _LoginScreenState extends State<LoginScreen> {
       print('Register flow başlatılıyor...');
       print('Email: $email');
 
-      // Yeni register flow ekranına yönlendir
       if (mounted) {
         Navigator.push(
           context,
@@ -154,7 +151,6 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const SizedBox(height: 60),
 
-                // Logo ve başlık
                 Container(
                   width: 100,
                   height: 100,
@@ -190,7 +186,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 48),
 
-                // Email alanı
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -235,7 +230,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Şifre alanı
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -296,7 +290,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Şifre onay alanı (sadece kayıt modunda)
                 if (!_isLoginMode) ...[
                   TextFormField(
                     controller: _confirmPasswordController,
@@ -359,7 +352,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                 ],
 
-                // Giriş/Kayıt butonu
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -385,7 +377,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Mod değiştirme butonu
                 CupertinoButton(
                   onPressed: () {
                     setState(() {

@@ -6,6 +6,7 @@ import 'dart:async';
 import '../models/user_model.dart';
 import '../models/dm_request_model.dart';
 import 'chat_screen.dart';
+import '../services/time_service.dart';
 
 class ChatsListScreen extends StatefulWidget {
   const ChatsListScreen({Key? key}) : super(key: key);
@@ -42,7 +43,6 @@ class _ChatsListScreenState extends State<ChatsListScreen>
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
 
-    // Active chats stream
     _chatsSubscription = FirebaseFirestore.instance
         .collection('chats')
         .where('participants', arrayContains: currentUser.uid)
@@ -53,7 +53,6 @@ class _ChatsListScreenState extends State<ChatsListScreen>
       _handleChatsUpdate(snapshot);
     });
 
-    // DM requests stream
     _requestsSubscription = FirebaseFirestore.instance
         .collection('dm_requests')
         .where('toUserId', isEqualTo: currentUser.uid)
@@ -145,33 +144,31 @@ class _ChatsListScreenState extends State<ChatsListScreen>
       final chatIdString = chatId.join('_');
 
       if (accept) {
-        // Önce chat var mı kontrol et
         final chatDoc = await FirebaseFirestore.instance
             .collection('chats')
             .doc(chatIdString)
             .get();
 
         if (!chatDoc.exists) {
-          // Chat yoksa oluştur
+          final realTimestamp = await TimeService.getCurrentTime();
+          
           await FirebaseFirestore.instance
               .collection('chats')
               .doc(chatIdString)
               .set({
             'participants': [request.fromUserId, currentUser.uid],
-            'lastMessageAt': FieldValue.serverTimestamp(),
+            'lastMessageAt': Timestamp.fromDate(realTimestamp), // İnternetten alınan saat
             'lastMessage': request.message,
             'isActive': true,
-            'createdAt': FieldValue.serverTimestamp(),
+            'createdAt': Timestamp.fromDate(realTimestamp), // İnternetten alınan saat
           });
         }
 
-        // DM isteğini accepted yap
         await FirebaseFirestore.instance
             .collection('dm_requests')
             .doc(request.id)
             .update({'status': 'accepted'});
 
-        // Chat ekranına yönlendir
         if (mounted) {
           final fromUser = (_dmRequests.firstWhere(
               (r) => r['request'].id == request.id)['fromUser'] as UserModel);
@@ -186,7 +183,6 @@ class _ChatsListScreenState extends State<ChatsListScreen>
           );
         }
       } else {
-        // Reddet
         await FirebaseFirestore.instance
             .collection('dm_requests')
             .doc(request.id)
@@ -225,7 +221,7 @@ class _ChatsListScreenState extends State<ChatsListScreen>
       leading: CircleAvatar(
         backgroundImage: fromUser.photoURL != null
             ? CachedNetworkImageProvider(fromUser.photoURL!)
-            : const AssetImage('assets/images/default_avatar.png')
+            : const AssetImage('assets/images/avatars/male1.png')
                 as ImageProvider,
       ),
       title: Text(fromUser.displayName ?? 'İsimsiz Kullanıcı'),
@@ -281,7 +277,6 @@ class _ChatsListScreenState extends State<ChatsListScreen>
                 style: const TextStyle(color: Colors.white, fontSize: 12),
               ),
             ),
-          // Mesaj durumu ikonu için placeholder (ileride eklenecek)
         ],
       ),
       onTap: () {
@@ -300,7 +295,6 @@ class _ChatsListScreenState extends State<ChatsListScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Toplam okunmamış mesaj sayısını hesapla
     int totalUnread = 0;
     for (final chat in _chats) {
       totalUnread += (chat['unreadCount'] as int? ?? 0);
@@ -361,7 +355,6 @@ class _ChatsListScreenState extends State<ChatsListScreen>
           : TabBarView(
               controller: _tabController,
               children: [
-                // Active Chats Tab
                 _chats.isEmpty
                     ? const Center(child: Text('Henüz aktif sohbet yok'))
                     : ListView.builder(
@@ -370,7 +363,6 @@ class _ChatsListScreenState extends State<ChatsListScreen>
                             _buildChatItem(_chats[index]),
                       ),
 
-                // DM Requests Tab
                 _dmRequests.isEmpty
                     ? const Center(child: Text('Henüz mesaj isteği yok'))
                     : ListView.builder(

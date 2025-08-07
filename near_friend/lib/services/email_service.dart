@@ -5,18 +5,14 @@ class EmailService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Email doğrulama kodu gönder
   Future<bool> sendVerificationCode(String email) async {
     try {
-      // Önce email formatını kontrol et
       if (!email.contains('@')) {
         throw 'Geçersiz email formatı';
       }
 
-      // Email doğrulama kodu oluştur (6 haneli)
       final verificationCode = _generateVerificationCode();
 
-      // Firestore'a doğrulama kodunu kaydet
       await _firestore.collection('verification_codes').doc(email).set({
         'code': verificationCode,
         'email': email,
@@ -25,8 +21,6 @@ class EmailService {
         'isUsed': false,
       });
 
-      // Burada gerçek email gönderme servisi entegre edilebilir
-      // Şimdilik sadece console'a yazdırıyoruz
       print('Email: $email');
       print('Doğrulama Kodu: $verificationCode');
 
@@ -37,7 +31,6 @@ class EmailService {
     }
   }
 
-  // Doğrulama kodunu kontrol et
   Future<bool> verifyCode(String email, String code) async {
     try {
       final doc =
@@ -50,26 +43,21 @@ class EmailService {
       final data = doc.data();
       if (data == null) return false;
 
-      // Kodun süresi dolmuş mu kontrol et (10 dakika)
       final createdAt = data['createdAt'] as Timestamp?;
       if (createdAt != null) {
         final now = Timestamp.now();
         final difference = now.seconds - createdAt.seconds;
         if (difference > 600) {
-          // 10 dakika = 600 saniye
           await doc.reference.delete(); // Süresi dolmuş kodu sil
           return false;
         }
       }
 
-      // Kod kullanılmış mı kontrol et
       if (data['isUsed'] == true) {
         return false;
       }
 
-      // Kodu kontrol et
       if (data['code'] == code) {
-        // Kodu kullanıldı olarak işaretle
         await doc.reference.update({'isUsed': true});
         return true;
       }
@@ -81,22 +69,16 @@ class EmailService {
     }
   }
 
-  // Email ile kullanıcı oluştur veya giriş yap
   Future<UserCredential?> signInWithEmail(String email) async {
     try {
-      // Önce kullanıcının var olup olmadığını kontrol et
       final methods = await _auth.fetchSignInMethodsForEmail(email);
 
       if (methods.isEmpty) {
-        // Yeni kullanıcı oluştur
         return await _auth.createUserWithEmailAndPassword(
           email: email,
           password: _generateTemporaryPassword(), // Geçici şifre
         );
       } else {
-        // Mevcut kullanıcı için giriş yap
-        // Bu durumda kullanıcıya şifre sıfırlama emaili gönderilebilir
-        // Şimdilik sadece mevcut kullanıcıyı döndür
         final user = _auth.currentUser;
         if (user != null && user.email == email) {
           return null; // Mevcut kullanıcı için null döndür
@@ -109,20 +91,17 @@ class EmailService {
     }
   }
 
-  // 6 haneli doğrulama kodu oluştur
   String _generateVerificationCode() {
     final random = DateTime.now().millisecondsSinceEpoch;
     final code = (random % 900000 + 100000).toString();
     return code;
   }
 
-  // Geçici şifre oluştur
   String _generateTemporaryPassword() {
     final random = DateTime.now().millisecondsSinceEpoch;
     return 'temp_${random}_${_generateVerificationCode()}';
   }
 
-  // Kullanıcı kaydını oluştur
   Future<void> createUserRecord(User user) async {
     try {
       await _firestore.collection('users').doc(user.uid).set({

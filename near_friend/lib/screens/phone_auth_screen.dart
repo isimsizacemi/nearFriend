@@ -101,7 +101,6 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // iOS Style Header
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -157,7 +156,6 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
               ),
             ),
 
-            // Content
             Expanded(
               child: Center(
                 child: Container(

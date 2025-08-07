@@ -26,17 +26,14 @@ class RegisterFlowScreen extends StatefulWidget {
 class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
   final AuthService _authService = AuthService();
 
-  // Flow durumu
   int _currentStep = 0; // 0: Quiz, 1: Profil Bilgileri, 2: Kayıt
 
-  // Quiz değişkenleri
   late List<Question> _selectedQuestions;
   int _currentQuestionIndex = 0;
   int _correctCount = 0;
   List<int?> _userAnswers = [];
   bool _quizFinished = false;
 
-  // Profil değişkenleri
   final _formKey = GlobalKey<FormState>();
   final _displayNameController = TextEditingController();
   final _bioController = TextEditingController();
@@ -47,7 +44,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
   final List<String> _selectedInterests = [];
   bool _isLoading = false;
 
-  // Seçenekler
   final List<String> _departments = [
     'Bilgisayar Mühendisliği',
     'Elektrik-Elektronik Mühendisliği',
@@ -133,14 +129,12 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
 
   void _nextStep() {
     if (_currentStep == 0) {
-      // Quiz'den geçti, profil bilgilerine geç
       if (_correctCount == _selectedQuestions.length) {
         setState(() {
           _currentStep = 1;
         });
       }
     } else if (_currentStep == 1) {
-      // Profil bilgileri tamamlandı, kayıt işlemini başlat
       if (_formKey.currentState!.validate()) {
         _registerUser();
       }
@@ -151,7 +145,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Firebase Auth'da kullanıcı oluştur
       final userCredential =
           await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: widget.email,
@@ -159,7 +152,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
       );
 
       if (userCredential.user != null) {
-        // Profil bilgilerini hazırla
         final profileData = {
           'displayName': _displayNameController.text.trim(),
           'university': _selectedUniversity,
@@ -174,10 +166,8 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
           'profileCreatedAt': FieldValue.serverTimestamp(),
         };
 
-        // Kullanıcı kaydını oluştur
         await _authService.createUserRecord(userCredential.user!);
 
-        // Profil bilgilerini güncelle
         await _authService.updateUserProfile(
             userCredential.user!.uid, profileData);
 
@@ -192,7 +182,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
             ),
           );
 
-          // Ana ekrana yönlendir
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => const MainApp()),
@@ -237,7 +226,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Progress Bar
             Container(
               padding: const EdgeInsets.all(20),
               child: Row(
@@ -264,7 +252,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
               ),
             ),
 
-            // Step Title
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -315,7 +302,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
 
             const SizedBox(height: 20),
 
-            // Content
             Expanded(
               child: _currentStep == 0
                   ? _buildQuizContent()
@@ -534,7 +520,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Display Name
             Text(
               'Ad Soyad *',
               style: AppTheme.iosFontMedium.copyWith(
@@ -565,7 +550,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
             ),
             const SizedBox(height: 20),
 
-            // University
             Text(
               'Üniversite *',
               style: AppTheme.iosFontMedium.copyWith(
@@ -607,7 +591,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Department
             Text(
               'Bölüm *',
               style: AppTheme.iosFontMedium.copyWith(
@@ -649,7 +632,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Age and Gender Row
             Row(
               children: [
                 Expanded(
@@ -743,7 +725,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Interests
             Text(
               'İlgi Alanları',
               style: AppTheme.iosFontMedium.copyWith(
@@ -783,7 +764,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Bio
             Text(
               'Hakkımda',
               style: AppTheme.iosFontMedium.copyWith(
@@ -809,7 +789,6 @@ class _RegisterFlowScreenState extends State<RegisterFlowScreen> {
             ),
             const SizedBox(height: 32),
 
-            // Register Button
             SizedBox(
               width: double.infinity,
               height: 56,

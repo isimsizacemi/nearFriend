@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:location/location.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/checkin_model.dart';
 import '../utils/app_theme.dart';
+import '../widgets/smart_avatar.dart';
+import 'dart:math' as math;
 
 class CheckinDetailScreen extends StatefulWidget {
   final String checkinId;
@@ -22,7 +25,7 @@ class CheckinDetailScreen extends StatefulWidget {
 class _CheckinDetailScreenState extends State<CheckinDetailScreen> {
   CheckinModel? _checkin;
   bool _isLoading = true;
-  Position? _currentPosition;
+  LocationData? _currentPosition;
 
   @override
   void initState() {
@@ -38,25 +41,40 @@ class _CheckinDetailScreenState extends State<CheckinDetailScreen> {
 
   Future<void> _getCurrentLocation() async {
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+      print('🔄 CheckinDetail: Konum alma işlemi başlatılıyor...');
+
+      Location location = Location();
+
+      bool serviceEnabled = await location.serviceEnabled();
+      if (!serviceEnabled) {
+        serviceEnabled = await location.requestService();
+        if (!serviceEnabled) {
+          print('❌ CheckinDetail: Konum servisi açılamadı');
+          return;
+        }
       }
 
-      if (permission == LocationPermission.deniedForever) {
-        return;
+      PermissionStatus permissionGranted = await location.hasPermission();
+      if (permissionGranted == PermissionStatus.denied) {
+        permissionGranted = await location.requestPermission();
+        if (permissionGranted != PermissionStatus.granted) {
+          print('❌ CheckinDetail: Konum izni alınamadı');
+          return;
+        }
       }
 
-      _currentPosition = await Geolocator.getCurrentPosition();
+      _currentPosition = await location.getLocation();
+      print(
+          '✅ CheckinDetail: Konum alındı: ${_currentPosition?.latitude}, ${_currentPosition?.longitude}');
       setState(() {});
     } catch (e) {
-      print('Konum alınırken hata: $e');
+      print('❌ CheckinDetail: Konum alınırken hata: $e');
     }
   }
 
   Future<void> _loadCheckin() async {
     try {
-      print('Check-in yükleniyor...');
+      print('🔄 CheckinDetail: Check-in yükleniyor...');
       print('Check-in ID: ${widget.checkinId}');
 
       final doc = await FirebaseFirestore.instance
@@ -65,97 +83,86 @@ class _CheckinDetailScreenState extends State<CheckinDetailScreen> {
           .get();
 
       print('Doküman var mı: ${doc.exists}');
-      if (doc.exists) {
-        print('Doküman verisi: ${doc.data()}');
+
+      if (doc.exists && mounted) {
         setState(() {
           _checkin = CheckinModel.fromFirestore(doc);
           _isLoading = false;
         });
+        print('✅ CheckinDetail: Check-in yüklendi: ${_checkin?.message}');
       } else {
-        print('Check-in bulunamadı!');
-        setState(() => _isLoading = false);
-      }
-    } catch (e) {
-      print('Check-in yüklenirken hata: $e');
-      setState(() => _isLoading = false);
-    }
-  }
-
-  double _getDistance() {
-    if (_currentPosition == null || _checkin?.location == null) return 0;
-    return Geolocator.distanceBetween(
-      _currentPosition!.latitude,
-      _currentPosition!.longitude,
-      _checkin!.geoPoint.latitude,
-      _checkin!.geoPoint.longitude,
-    );
-  }
-
-  String _formatDistance(double distance) {
-    if (distance < 1000) {
-      return '${distance.round()}m uzaklıkta';
-    } else {
-      return '${(distance / 1000).toStringAsFixed(1)}km uzaklıkta';
-    }
-  }
-
-  String _formatTimeAgo(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inMinutes < 1) {
-      return 'Az önce';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} dakika önce';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours} saat önce';
-    } else {
-      return '${difference.inDays} gün önce';
-    }
-  }
-
-  Future<void> _openInGoogleMaps() async {
-    if (_checkin?.location == null) return;
-
-    try {
-      final latitude = _checkin!.geoPoint.latitude;
-      final longitude = _checkin!.geoPoint.longitude;
-      final locationName = _checkin!.locationName;
-
-      // Google Maps URL'si oluştur
-      final url =
-          'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude';
-
-      // URL'yi aç
-      if (await canLaunchUrl(Uri.parse(url))) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-      } else {
-        // Eğer Google Maps açılamazsa, hata mesajı göster
+        print('❌ CheckinDetail: Check-in bulunamadı');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Google Maps açılamadı'),
-              backgroundColor: AppTheme.iosRed,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          );
+          setState(() {
+            _isLoading = false;
+          });
         }
       }
     } catch (e) {
-      print('Google Maps açılırken hata: $e');
+      print('❌ CheckinDetail: Check-in yüklenirken hata: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Konum açılırken hata: $e'),
-            backgroundColor: AppTheme.iosRed,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        setState(() {
+          _isLoading = false;
+        });
       }
+    }
+  }
+
+  double _calculateDistance(
+      double lat1, double lon1, double lat2, double lon2) {
+    const double earthRadius = 6371; // Dünya'nın yarıçapı (km)
+
+    double dLat = _degreesToRadians(lat2 - lat1);
+    double dLon = _degreesToRadians(lon2 - lon1);
+
+    double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degreesToRadians(lat1)) *
+            math.cos(_degreesToRadians(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+
+    double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    double distance = earthRadius * c;
+
+    return distance;
+  }
+
+  double _degreesToRadians(double degrees) {
+    return degrees * (math.pi / 180);
+  }
+
+  String _formatDistance(double distanceKm) {
+    if (distanceKm < 1) {
+      return '${(distanceKm * 1000).round()}m';
+    } else {
+      return '${distanceKm.toStringAsFixed(1)}km';
+    }
+  }
+
+  Future<void> _openInMaps() async {
+    if (_checkin?.location['geopoint'] == null) return;
+
+    final geoPointData = _checkin!.location['geopoint'];
+    double? latitude, longitude;
+    
+    if (geoPointData is GeoPoint) {
+      latitude = geoPointData.latitude;
+      longitude = geoPointData.longitude;
+    } else if (geoPointData is Map<String, dynamic>) {
+      latitude = geoPointData['latitude']?.toDouble();
+      longitude = geoPointData['longitude']?.toDouble();
+    }
+    
+    if (latitude == null || longitude == null) return;
+    
+    final url = 'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude';
+
+    try {
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url));
+      }
+    } catch (e) {
+      print('Harita açılamadı: $e');
     }
   }
 
@@ -167,35 +174,16 @@ class _CheckinDetailScreenState extends State<CheckinDetailScreen> {
       return Scaffold(
         backgroundColor:
             isDark ? AppTheme.iosDarkBackground : AppTheme.iosBackground,
-        body: SafeArea(
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? AppTheme.iosDarkSecondaryBackground
-                    : AppTheme.iosSecondaryBackground,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(
-                    color: AppTheme.iosBlue,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Check-in yükleniyor...',
-                    style: AppTheme.iosFont.copyWith(
-                      color: isDark
-                          ? AppTheme.iosDarkSecondaryText
-                          : AppTheme.iosSecondaryText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        appBar: AppBar(
+          title: const Text('Check-in Detayı'),
+          backgroundColor: isDark
+              ? AppTheme.iosDarkSecondaryBackground
+              : AppTheme.iosSecondaryBackground,
+          foregroundColor:
+              isDark ? AppTheme.iosDarkPrimaryText : AppTheme.iosPrimaryText,
+        ),
+        body: const Center(
+          child: CupertinoActivityIndicator(),
         ),
       );
     }
@@ -204,109 +192,132 @@ class _CheckinDetailScreenState extends State<CheckinDetailScreen> {
       return Scaffold(
         backgroundColor:
             isDark ? AppTheme.iosDarkBackground : AppTheme.iosBackground,
-        body: SafeArea(
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.all(32),
-              margin: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? AppTheme.iosDarkSecondaryBackground
-                    : AppTheme.iosSecondaryBackground,
-                borderRadius: BorderRadius.circular(20),
+        appBar: AppBar(
+          title: const Text('Check-in Detayı'),
+          backgroundColor: isDark
+              ? AppTheme.iosDarkSecondaryBackground
+              : AppTheme.iosSecondaryBackground,
+          foregroundColor:
+              isDark ? AppTheme.iosDarkPrimaryText : AppTheme.iosPrimaryText,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                CupertinoIcons.exclamationmark_triangle,
+                size: 64,
+                color: AppTheme.iosRed,
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: AppTheme.iosRed,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Check-in bulunamadı',
-                    style: AppTheme.iosFontMedium.copyWith(
-                      color: isDark
-                          ? AppTheme.iosDarkPrimaryText
-                          : AppTheme.iosPrimaryText,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Bu check-in silinmiş olabilir',
-                    style: AppTheme.iosFontSmall.copyWith(
-                      color: isDark
-                          ? AppTheme.iosDarkSecondaryText
-                          : AppTheme.iosSecondaryText,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 16),
+              Text(
+                'Check-in bulunamadı',
+                style: AppTheme.iosFont.copyWith(
+                  color: isDark
+                      ? AppTheme.iosDarkPrimaryText
+                      : AppTheme.iosPrimaryText,
+                  fontSize: 18,
+                ),
               ),
-            ),
+              const SizedBox(height: 24),
+              CupertinoButton.filled(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Geri Dön'),
+              ),
+            ],
           ),
         ),
+      );
+    }
+
+    final geoPointData = _checkin!.location['geopoint'];
+    double? latitude, longitude;
+    double? distance;
+    
+    if (geoPointData is GeoPoint) {
+      latitude = geoPointData.latitude;
+      longitude = geoPointData.longitude;
+    } else if (geoPointData is Map<String, dynamic>) {
+      latitude = geoPointData['latitude']?.toDouble();
+      longitude = geoPointData['longitude']?.toDouble();
+    }
+    
+    if (_currentPosition != null && latitude != null && longitude != null) {
+      distance = _calculateDistance(
+        _currentPosition!.latitude!,
+        _currentPosition!.longitude!,
+        latitude,
+        longitude,
       );
     }
 
     return Scaffold(
       backgroundColor:
           isDark ? AppTheme.iosDarkBackground : AppTheme.iosBackground,
-      body: SafeArea(
+      appBar: AppBar(
+        title: const Text('Check-in Detayı'),
+        backgroundColor: isDark
+            ? AppTheme.iosDarkSecondaryBackground
+            : AppTheme.iosSecondaryBackground,
+        foregroundColor:
+            isDark ? AppTheme.iosDarkPrimaryText : AppTheme.iosPrimaryText,
+        actions: [
+          if (latitude != null && longitude != null)
+            CupertinoButton(
+              padding: const EdgeInsets.all(8),
+              onPressed: _openInMaps,
+              child: Icon(
+                CupertinoIcons.map,
+                color: AppTheme.iosBlue,
+              ),
+            ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // iOS Style Header
             Container(
-              padding: const EdgeInsets.all(20),
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: isDark
                     ? AppTheme.iosDarkSecondaryBackground
                     : AppTheme.iosSecondaryBackground,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: Icon(
-                      Icons.arrow_back_ios,
-                      color: isDark
-                          ? AppTheme.iosDarkPrimaryText
-                          : AppTheme.iosPrimaryText,
-                    ),
+                  SmartAvatar(
+                    photoURL: _checkin!.userPhotoURL,
+                    size: 50,
+                    fallbackColor: AppTheme.iosBlue,
                   ),
-                  const SizedBox(width: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.iosBlue,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.location_on,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Check-in Detayı',
-                          style: AppTheme.iosFontMedium.copyWith(
+                          _checkin!.userDisplayName,
+                          style: AppTheme.iosFont.copyWith(
+                            fontWeight: FontWeight.w600,
                             color: isDark
                                 ? AppTheme.iosDarkPrimaryText
                                 : AppTheme.iosPrimaryText,
                           ),
                         ),
                         Text(
-                          _formatTimeAgo(_checkin!.createdAt),
-                          style: AppTheme.iosFontSmall.copyWith(
+                          _formatDate(_checkin!.createdAt),
+                          style: AppTheme.iosFontCaption.copyWith(
                             color: isDark
                                 ? AppTheme.iosDarkSecondaryText
                                 : AppTheme.iosSecondaryText,
@@ -319,266 +330,195 @@ class _CheckinDetailScreenState extends State<CheckinDetailScreen> {
               ),
             ),
 
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Kullanıcı bilgileri
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppTheme.iosDarkSecondaryBackground
-                            : AppTheme.iosSecondaryBackground,
-                        borderRadius: BorderRadius.circular(16),
+            const SizedBox(height: 16),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppTheme.iosDarkSecondaryBackground
+                    : AppTheme.iosSecondaryBackground,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Mesaj',
+                    style: AppTheme.iosFontSmall.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? AppTheme.iosDarkPrimaryText
+                          : AppTheme.iosPrimaryText,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _checkin!.message,
+                    style: AppTheme.iosFont.copyWith(
+                      color: isDark
+                          ? AppTheme.iosDarkPrimaryText
+                          : AppTheme.iosPrimaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppTheme.iosDarkSecondaryBackground
+                    : AppTheme.iosSecondaryBackground,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        CupertinoIcons.location_solid,
+                        color: AppTheme.iosBlue,
+                        size: 20,
                       ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Konum',
+                        style: AppTheme.iosFontSmall.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? AppTheme.iosDarkPrimaryText
+                              : AppTheme.iosPrimaryText,
+                        ),
+                      ),
+                      if (distance != null) ...[
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppTheme.iosGreen.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _formatDistance(distance),
+                            style: AppTheme.iosFontCaption.copyWith(
+                              color: AppTheme.iosGreen,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _checkin!.locationName.isNotEmpty
+                        ? _checkin!.locationName
+                        : latitude != null && longitude != null
+                            ? 'Lat: ${latitude.toStringAsFixed(4)}, Lng: ${longitude.toStringAsFixed(4)}'
+                            : 'Konum bilgisi yok',
+                    style: AppTheme.iosFont.copyWith(
+                      color: isDark
+                          ? AppTheme.iosDarkPrimaryText
+                          : AppTheme.iosPrimaryText,
+                    ),
+                  ),
+                  if (latitude != null && longitude != null) ...[
+                    const SizedBox(height: 12),
+                    CupertinoButton.filled(
+                      onPressed: _openInMaps,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                color: AppTheme.iosBlue.withOpacity(0.2),
-                                width: 2,
-                              ),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(30),
-                              child: _checkin!.userPhotoURL != null
-                                  ? Image.network(
-                                      _checkin!.userPhotoURL!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) {
-                                        return Container(
-                                          color: isDark
-                                              ? AppTheme
-                                                  .iosDarkTertiaryBackground
-                                              : AppTheme.iosTertiaryBackground,
-                                          child: Icon(
-                                            Icons.person,
-                                            color: isDark
-                                                ? AppTheme.iosDarkSecondaryText
-                                                : AppTheme.iosSecondaryText,
-                                          ),
-                                        );
-                                      },
-                                    )
-                                  : Container(
-                                      color: isDark
-                                          ? AppTheme.iosDarkTertiaryBackground
-                                          : AppTheme.iosTertiaryBackground,
-                                      child: Icon(
-                                        Icons.person,
-                                        color: isDark
-                                            ? AppTheme.iosDarkSecondaryText
-                                            : AppTheme.iosSecondaryText,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _checkin!.userDisplayName,
-                                  style: AppTheme.iosFontBold.copyWith(
-                                    color: isDark
-                                        ? AppTheme.iosDarkPrimaryText
-                                        : AppTheme.iosPrimaryText,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _formatTimeAgo(_checkin!.createdAt),
-                                  style: AppTheme.iosFontSmall.copyWith(
-                                    color: isDark
-                                        ? AppTheme.iosDarkSecondaryText
-                                        : AppTheme.iosSecondaryText,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Mesaj
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppTheme.iosDarkSecondaryBackground
-                            : AppTheme.iosSecondaryBackground,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Mesaj',
-                            style: AppTheme.iosFontBold.copyWith(
-                              color: isDark
-                                  ? AppTheme.iosDarkPrimaryText
-                                  : AppTheme.iosPrimaryText,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            _checkin!.message,
-                            style: AppTheme.iosFont.copyWith(
-                              color: isDark
-                                  ? AppTheme.iosDarkPrimaryText
-                                  : AppTheme.iosPrimaryText,
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Konum bilgileri
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppTheme.iosDarkSecondaryBackground
-                            : AppTheme.iosSecondaryBackground,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Konum',
-                            style: AppTheme.iosFontBold.copyWith(
-                              color: isDark
-                                  ? AppTheme.iosDarkPrimaryText
-                                  : AppTheme.iosPrimaryText,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: _openInGoogleMaps,
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: AppTheme.iosBlue.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: AppTheme.iosBlue.withOpacity(0.3),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.location_on,
-                                    color: AppTheme.iosBlue,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      _checkin!.locationName,
-                                      style: AppTheme.iosFont.copyWith(
-                                        color: AppTheme.iosBlue,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  Icon(
-                                    Icons.open_in_new,
-                                    color: AppTheme.iosBlue,
-                                    size: 16,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          if (_currentPosition != null) ...[
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.directions_walk,
-                                  color: AppTheme.iosGreen,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _formatDistance(_getDistance()),
-                                  style: AppTheme.iosFontSmall.copyWith(
-                                    color: AppTheme.iosGreen,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Etkileşim istatistikleri
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppTheme.iosDarkSecondaryBackground
-                            : AppTheme.iosSecondaryBackground,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Etkileşimler',
-                            style: AppTheme.iosFontBold.copyWith(
-                              color: isDark
-                                  ? AppTheme.iosDarkPrimaryText
-                                  : AppTheme.iosPrimaryText,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              _buildStatItem(
-                                icon: Icons.favorite,
-                                count: _checkin!.likes.length,
-                                label: 'Beğeni',
-                                color: AppTheme.iosRed,
-                                isDark: isDark,
-                              ),
-                              const SizedBox(width: 20),
-                              _buildStatItem(
-                                icon: Icons.comment,
-                                count: _checkin!.comments.length,
-                                label: 'Yorum',
-                                color: AppTheme.iosBlue,
-                                isDark: isDark,
-                              ),
-                            ],
-                          ),
+                          Icon(CupertinoIcons.map, size: 16),
+                          const SizedBox(width: 8),
+                          const Text('Haritada Aç'),
                         ],
                       ),
                     ),
                   ],
-                ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppTheme.iosDarkSecondaryBackground
+                    : AppTheme.iosSecondaryBackground,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'İstatistikler',
+                    style: AppTheme.iosFontSmall.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? AppTheme.iosDarkPrimaryText
+                          : AppTheme.iosPrimaryText,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatItem(
+                          icon: CupertinoIcons.heart,
+                          label: 'Beğeni',
+                          value: '${_checkin!.likes.length}',
+                          color: AppTheme.iosRed,
+                          isDark: isDark,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildStatItem(
+                          icon: CupertinoIcons.chat_bubble,
+                          label: 'Yorum',
+                          value: '${_checkin!.comments.length}',
+                          color: AppTheme.iosBlue,
+                          isDark: isDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],
@@ -589,48 +529,57 @@ class _CheckinDetailScreenState extends State<CheckinDetailScreen> {
 
   Widget _buildStatItem({
     required IconData icon,
-    required int count,
     required String label,
+    required String value,
     required Color color,
     required bool isDark,
   }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark
-              ? AppTheme.iosDarkTertiaryBackground
-              : AppTheme.iosTertiaryBackground,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            color: color,
+            size: 24,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: AppTheme.iosFont.copyWith(
+              fontWeight: FontWeight.bold,
               color: color,
-              size: 24,
             ),
-            const SizedBox(height: 8),
-            Text(
-              count.toString(),
-              style: AppTheme.iosFontBold.copyWith(
-                color: isDark
-                    ? AppTheme.iosDarkPrimaryText
-                    : AppTheme.iosPrimaryText,
-                fontSize: 18,
-              ),
+          ),
+          Text(
+            label,
+            style: AppTheme.iosFontCaption.copyWith(
+              color: isDark
+                  ? AppTheme.iosDarkSecondaryText
+                  : AppTheme.iosSecondaryText,
             ),
-            Text(
-              label,
-              style: AppTheme.iosFontSmall.copyWith(
-                color: isDark
-                    ? AppTheme.iosDarkSecondaryText
-                    : AppTheme.iosSecondaryText,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays} gün önce';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} saat önce';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} dakika önce';
+    } else {
+      return 'Şimdi';
+    }
   }
 }

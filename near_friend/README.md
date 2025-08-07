@@ -1,16 +1,49 @@
-# near_friend
+# nearFriend
 
-A new Flutter project.
+Flutter ile geliştirilmiş konum tabanlı sosyal medya uygulaması.
 
-## Getting Started
+## Özellikler
 
-This project is a starting point for a Flutter application.
+- Konum tabanlı paylaşım
+- Yakındaki kullanıcıları görme
+- Gerçek zamanlı mesajlaşma
+- Push bildirimleri
+- Modern UI/UX
 
-A few resources to get you started if this is your first Flutter project:
+## Teknolojiler
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- Flutter 3.16.0
+- Firebase (Auth, Firestore, Storage)
+- Google Maps API
+- Provider (State Management)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Kurulum
+
+1. Repository'yi klonlayın
+2. `flutter pub get` komutunu çalıştırın
+3. Firebase yapılandırmasını tamamlayın
+4. `flutter run` ile çalıştırın
+
+## Proje Yapısı
+
+```
+lib/
+├── main.dart
+├── models/
+├── screens/
+├── services/
+├── utils/
+└── widgets/
+```
+
+## APK
+
+Release APK: `build/app/outputs/flutter-apk/app-release.apk`
+
+## Katkıda Bulunma
+
+Detaylar için [CONTRIBUTING.md](CONTRIBUTING.md) dosyasını inceleyin.
+
+## Lisans
+
+MIT License - [LICENSE](LICENSE) dosyasına bakın.

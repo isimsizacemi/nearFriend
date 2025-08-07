@@ -1,137 +1,43 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
     // Kullanıcılar koleksiyonu
     match /users/{userId} {
-      // Herkes kullanıcı profillerini okuyabilir
       allow read: if request.auth != null;
-      
-      // Kullanıcı kendi profilini güncelleyebilir
-      allow update: if request.auth != null && 
-        request.auth.uid == userId;
-      
-      // Kullanıcı kendi kaydını oluşturabilir
-      allow create: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Check-in'ler koleksiyonu
+    // Checkin'ler koleksiyonu
     match /checkins/{checkinId} {
-      // Herkes check-in'leri okuyabilir
       allow read: if request.auth != null;
-      
-      // Kullanıcı check-in oluşturabilir
       allow create: if request.auth != null;
-      
-      // Kullanıcı kendi check-in'ini güncelleyebilir (beğeni, yorum vb.)
-      allow update: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
-      
-      // Kullanıcı kendi check-in'ini silebilir
-      allow delete: if request.auth != null && 
+      allow update, delete: if request.auth != null && 
         request.auth.uid == resource.data.userId;
     }
     
     // DM istekleri koleksiyonu
     match /dm_requests/{requestId} {
-      // Kullanıcı kendine gelen DM isteklerini okuyabilir
       allow read: if request.auth != null && 
-        request.auth.uid == resource.data.toUserId;
-      
-      // Kullanıcı DM isteği gönderebilir
+        (request.auth.uid == resource.data.fromUserId || 
+         request.auth.uid == resource.data.toUserId);
       allow create: if request.auth != null && 
-        request.auth.uid == resource.data.fromUserId;
-      
-      // Kullanıcı kendine gelen DM isteğini güncelleyebilir (kabul/red)
+        request.auth.uid == request.resource.data.fromUserId;
       allow update: if request.auth != null && 
-        request.auth.uid == resource.data.toUserId;
+        (request.auth.uid == resource.data.fromUserId || 
+         request.auth.uid == resource.data.toUserId);
     }
     
     // Chat'ler koleksiyonu
     match /chats/{chatId} {
-      // Kullanıcı sadece kendinin dahil olduğu chat'leri okuyabilir
-      allow read: if request.auth != null && 
-        (request.auth.uid == resource.data.user1Id || 
-         request.auth.uid == resource.data.user2Id);
-      
-      // Kullanıcı chat oluşturabilir (eşleşme sonrası)
-      allow create: if request.auth != null && 
-        (request.auth.uid == request.resource.data.user1Id || 
-         request.auth.uid == request.resource.data.user2Id);
-      
-      // Chat güncellemelerine izin ver (son mesaj, okundu durumu vb.)
-      allow update: if request.auth != null && 
-        (request.auth.uid == resource.data.user1Id || 
-         request.auth.uid == resource.data.user2Id);
-    }
-    
-    // Yorumlar koleksiyonu
-    match /comments/{commentId} {
-      // Herkes yorumları okuyabilir
-      allow read: if request.auth != null;
-      
-      // Kullanıcı yorum yazabilir
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.userId;
-      
-      // Kullanıcı kendi yorumunu güncelleyebilir/silebilir
-      allow update, delete: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
+      allow read, write: if request.auth != null && 
+        request.auth.uid in resource.data.participants;
     }
     
     // Mesajlar koleksiyonu
     match /messages/{messageId} {
-      // Kullanıcı sadece kendine gelen/gönderdiği mesajları okuyabilir
-      allow read: if request.auth != null && 
+      allow read, write: if request.auth != null && 
         (request.auth.uid == resource.data.senderId || 
          request.auth.uid == resource.data.receiverId);
-      
-      // Kullanıcı mesaj gönderebilir
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.senderId;
-      
-      // Kullanıcı kendi mesajını silebilir
-      allow delete: if request.auth != null && 
-        request.auth.uid == resource.data.senderId;
-    }
-    
-    // Doğrulama kodları koleksiyonu (geçici)
-    match /verification_codes/{email} {
-      // Geçici olarak herkese izin ver (güvenlik için daha sonra kısıtlanacak)
-      allow read, write: if true;
-    }
-    
-    // Quiz sonuçları koleksiyonu
-    match /quiz_results/{resultId} {
-      // Kullanıcı sadece kendi quiz sonuçlarını okuyabilir
-      allow read: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
-      
-      // Kullanıcı quiz sonucunu kaydedebilir
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.userId;
-    }
-    
-    // Bildirimler koleksiyonu
-    match /notifications/{notificationId} {
-      // Kullanıcı sadece kendi bildirimlerini okuyabilir
-      allow read: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
-      
-      // Kullanıcı bildirimini okundu olarak işaretleyebilir
-      allow update: if request.auth != null && 
-        request.auth.uid == resource.data.userId &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
-    }
-    
-    // Raporlar koleksiyonu
-    match /reports/{reportId} {
-      // Kullanıcı rapor oluşturabilir
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.reporterId;
-      
-      // Sadece admin raporları okuyabilir (gelecekte admin kontrolü eklenecek)
-      allow read: if request.auth != null;
     }
   }
 } 

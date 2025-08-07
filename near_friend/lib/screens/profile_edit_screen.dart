@@ -10,7 +10,6 @@ import '../utils/app_theme.dart';
 import '../models/user_model.dart';
 import '../utils/university_list.dart';
 
-// Move these to the top of the file, outside the class
 const List<String> femaleAvatars = [
   'assets/images/avatars/female1.png',
   'assets/images/avatars/female2.png',
@@ -108,7 +107,6 @@ const List<String> interestList = [
   'Şiir',
   'Astronomi',
   'Bilim',
-  // ... daha fazla ilgi alanı ekleyebilirsin ...
 ];
 
 class ProfileEditScreen extends StatefulWidget {
@@ -164,9 +162,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
       try {
         final user = FirebaseAuth.instance.currentUser;
-        if (user == null) return;
+        if (user == null) {
+          throw Exception('Kullanıcı oturumu bulunamadı');
+        }
 
-        // Kullanıcı verilerini güncelle
         final updatedUser = widget.user.copyWith(
           displayName: _nameController.text.trim(),
           bio: _bioController.text.trim(),
@@ -184,10 +183,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             .doc(user.uid)
             .update(updatedUser.toFirestore());
 
-        // Firebase Auth displayName güncelleme
-        await user.updateDisplayName(_nameController.text.trim());
-        if (_selectedAvatar != null) {
-          await user.updatePhotoURL(_selectedAvatar!);
+        try {
+          await user.updateDisplayName(_nameController.text.trim());
+        } catch (authError) {
+          print('Firebase Auth güncelleme hatası: $authError');
         }
 
         setState(() {
@@ -196,7 +195,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Profil başarıyla güncellendi')),
+            const SnackBar(
+              content: Text('Profil başarıyla güncellendi'),
+              backgroundColor: Colors.green,
+            ),
           );
           Navigator.pop(context, true);
         }
@@ -207,8 +209,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Profil güncellenirken bir hata oluştu')),
+            SnackBar(
+              content: Text('Profil güncellenirken hata oluştu: $e'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
           );
         }
       }
@@ -288,9 +293,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                         radius: 50,
                         backgroundImage: _selectedAvatar != null
                             ? AssetImage(_selectedAvatar!) as ImageProvider
-                            : AssetImage('assets/images/default_avatar.png'),
+                            : AssetImage('assets/images/avatars/male1.png'),
                       ),
-                      // Removed photo upload button
                     ],
                   ),
                 ),
@@ -318,7 +322,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   maxLines: 3,
                 ),
                 const SizedBox(height: 16),
-                // Üniversite Dropdown
                 DropdownButtonFormField<String>(
                   value: universityList.contains(_universityController.text)
                       ? _universityController.text
@@ -335,7 +338,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                // Bölüm Dropdown
                 DropdownButtonFormField<String>(
                   value: departmentList.contains(_selectedDepartment)
                       ? _selectedDepartment
@@ -400,7 +402,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                // İlgi Alanları Çoklu Seçim
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,

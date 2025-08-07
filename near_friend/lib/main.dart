@@ -25,7 +25,6 @@ void main() async {
     print('Firebase başarıyla başlatıldı');
   } catch (e) {
     print('Firebase başlatma hatası: $e');
-    // Firebase başlatılamazsa da uygulamayı çalıştır
   }
 
   runApp(const MyApp());
@@ -82,7 +81,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
       print('Mevcut kullanıcı: ${user?.uid}');
 
       if (user != null) {
-        // Kullanıcı giriş yapmış, durumunu kontrol et
         try {
           final hasPassedQuiz = await _authService.hasUserPassedQuiz(user.uid);
           final hasCreatedProfile =
@@ -109,7 +107,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
           }
         } catch (e) {
           print('Kullanıcı durumu kontrol hatası: $e');
-          // Hata durumunda ana ekrana yönlendir
           setState(() {
             _nextScreen = 'main';
             _isLoading = false;
@@ -178,7 +175,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
 
         if (snapshot.hasData && snapshot.data != null) {
-          // Kullanıcı giriş yapmış
           switch (_nextScreen) {
             case 'quiz':
               return const QuizScreen();
@@ -190,7 +186,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
           }
         }
 
-        // Kullanıcı giriş yapmamış
         return const LoginScreen();
       },
     );

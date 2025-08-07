@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 import '../models/user_model.dart';
 import '../models/message_model.dart';
-import '../screens/checkin_detail_screen.dart';
+import '../services/time_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String otherUserId;
@@ -18,7 +17,7 @@ class ChatScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _ChatScreenState createState() => _ChatScreenState();
+  State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
@@ -43,6 +42,16 @@ class _ChatScreenState extends State<ChatScreen> {
       if (_scrollController.position.pixels ==
           _scrollController.position.maxScrollExtent) {
         _loadMoreMessages();
+      }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
       }
     });
   }
@@ -100,50 +109,72 @@ class _ChatScreenState extends State<ChatScreen> {
         .orderBy('timestamp', descending: true)
         .limit(_pageSize);
 
-    _messagesSubscription = messagesQuery.snapshots().listen((snapshot) async {
-      if (snapshot.docs.isEmpty) {
+    _messagesSubscription = messagesQuery.snapshots().listen(
+      (snapshot) async {
+        if (snapshot.docs.isEmpty) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+          return;
+        }
+
+        final messages = snapshot.docs
+            .map((doc) => MessageModel.fromFirestore(doc))
+            .toList();
+
+        final currentUser = FirebaseAuth.instance.currentUser;
+        if (currentUser != null) {
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            if (data['receiverId'] == currentUser.uid) {
+              if (data['delivered'] != true) {
+                doc.reference.update({'delivered': true});
+              }
+
+              if (data['read'] != true) {
+                doc.reference.update({'read': true});
+              }
+            }
+          }
+        }
+
+        if (mounted) {
+          final previousLength = _messages.length;
+
+          setState(() {
+            for (var msg in messages) {
+              if (!_messages.any((m) => m.id == msg.id)) {
+                _messages.add(msg);
+              }
+            }
+            _lastDocument = snapshot.docs.last;
+            _isLoading = false;
+          });
+
+          if (_messages.length > previousLength) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (_scrollController.hasClients) {
+                _scrollController.animateTo(
+                  _scrollController.position.maxScrollExtent,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                );
+              }
+            });
+          }
+        }
+      },
+      onError: (error) {
+        print('Mesaj stream hatası: $error');
         if (mounted) {
           setState(() {
             _isLoading = false;
           });
         }
-        return;
-      }
-
-      final messages =
-          snapshot.docs.map((doc) => MessageModel.fromFirestore(doc)).toList();
-
-      // Gelen mesajlar için delivered güncellemesi
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser != null) {
-        for (var doc in snapshot.docs) {
-          final data = doc.data() as Map<String, dynamic>;
-          if (data['receiverId'] == currentUser.uid &&
-              data['delivered'] != true) {
-            doc.reference.update({'delivered': true});
-          }
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          for (var msg in messages) {
-            if (!_messages.any((m) => m.id == msg.id)) {
-              _messages.add(msg);
-            }
-          }
-          _lastDocument = snapshot.docs.last;
-          _isLoading = false;
-        });
-      }
-    }, onError: (error) {
-      print('Mesaj stream hatası: $error');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    });
+      },
+    );
   }
 
   Future<void> _loadMoreMessages() async {
@@ -188,18 +219,55 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _markMessagesAsReadInRealTime() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return;
+
+      final chatId = _getChatId();
+
+      final unreadMessages = _messages
+          .where((msg) => msg.receiverId == currentUser.uid && !msg.read)
+          .toList();
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      for (var message in unreadMessages) {
+        final messageRef = FirebaseFirestore.instance
+            .collection('chats')
+            .doc(chatId)
+            .collection('messages')
+            .doc(message.id);
+        batch.update(messageRef, {
+          'read': true,
+          'readAt': FieldValue.serverTimestamp(), // Okundu zamanı
+        });
+      }
+
+      final chatRef =
+          FirebaseFirestore.instance.collection('chats').doc(chatId);
+      batch.update(chatRef, {
+        'unreadCount_${currentUser.uid}': 0,
+      });
+
+      await batch.commit();
+
+      print('✅ ${unreadMessages.length} mesaj anlık olarak okundu işaretlendi');
+    } catch (e) {
+      print('❌ Anlık okundu işaretleme hatası: $e');
+    }
+  }
+
   Future<void> _markChatAsReadAndDelivered() async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
 
       final chatId = _getChatId();
-      await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(chatId)
-          .update({'unreadCount_${currentUser.uid}': 0});
+      await FirebaseFirestore.instance.collection('chats').doc(chatId).update({
+        'unreadCount_${currentUser.uid}': 0,
+      });
 
-      // Tüm karşı tarafın göndermiş olduğu ve delivered=false olan mesajları iletildi olarak işaretle
       final deliveredQuery = await FirebaseFirestore.instance
           .collection('chats')
           .doc(chatId)
@@ -211,7 +279,6 @@ class _ChatScreenState extends State<ChatScreen> {
         doc.reference.update({'delivered': true});
       }
 
-      // Tüm karşı tarafın göndermiş olduğu ve read=false olan mesajları okundu olarak işaretle
       final readQuery = await FirebaseFirestore.instance
           .collection('chats')
           .doc(chatId)
@@ -237,6 +304,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.clear();
 
     try {
+      final realTimestamp = await TimeService.getCurrentTime();
+
       final chatId = _getChatId();
       final batch = FirebaseFirestore.instance.batch();
       final messageRef = FirebaseFirestore.instance
@@ -250,7 +319,7 @@ class _ChatScreenState extends State<ChatScreen> {
         senderId: currentUser.uid,
         receiverId: widget.otherUserId,
         content: messageText,
-        timestamp: DateTime.now(),
+        timestamp: realTimestamp, // İnternetten alınan gerçek saat
         isRead: false,
         delivered: true, // Mesaj gönderildiğinde delivered=true
         read: false,
@@ -259,14 +328,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
       batch.set(messageRef, message.toFirestore());
 
-      // Update chat document
       final chatRef =
           FirebaseFirestore.instance.collection('chats').doc(chatId);
       batch.set(
           chatRef,
           {
             'lastMessage': messageText,
-            'lastMessageAt': FieldValue.serverTimestamp(),
+            'lastMessageAt':
+                Timestamp.fromDate(realTimestamp), // İnternetten alınan saat
             'participants': [currentUser.uid, widget.otherUserId],
             'isActive': true,
             'unreadCount_${widget.otherUserId}': FieldValue.increment(1),
@@ -274,11 +343,24 @@ class _ChatScreenState extends State<ChatScreen> {
           SetOptions(merge: true));
 
       await batch.commit();
+
+      print('✅ Mesaj gönderildi - Gerçek saat: $realTimestamp');
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
     } catch (e) {
-      print('Mesaj gönderilirken hata: $e');
+      print('❌ Mesaj gönderilirken hata: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Mesaj gönderilemedi. Lütfen tekrar deneyin.')),
+          content: Text('Mesaj gönderilemedi. Lütfen tekrar deneyin.'),
+        ),
       );
     }
   }
@@ -292,7 +374,7 @@ class _ChatScreenState extends State<ChatScreen> {
     Widget statusIcon = const SizedBox.shrink();
     if (isMe) {
       if (message.read) {
-        statusIcon = const Icon(Icons.done_all, color: Colors.amber, size: 16);
+        statusIcon = const Icon(Icons.done_all, color: Colors.blue, size: 16);
       } else if (message.delivered) {
         statusIcon = const Icon(Icons.done_all, color: Colors.grey, size: 16);
       } else {
@@ -302,17 +384,22 @@ class _ChatScreenState extends State<ChatScreen> {
 
     Widget bubble = Container(
       margin: EdgeInsets.only(
-        top: 8,
-        bottom: 8,
+        top: 4,
+        bottom: 4,
         left: isMe ? 64 : 16,
         right: isMe ? 16 : 64,
       ),
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isMe ? Colors.blue : Colors.grey[300],
-          borderRadius: BorderRadius.circular(20),
+          color: isMe ? const Color(0xFF0084FF) : const Color(0xFFF0F0F0),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: Radius.circular(isMe ? 16 : 4),
+            bottomRight: Radius.circular(isMe ? 4 : 16),
+          ),
         ),
         child: Column(
           crossAxisAlignment:
@@ -334,19 +421,21 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                 ),
-                if (isMe) ...[
-                  const SizedBox(width: 6),
-                  statusIcon,
-                ]
+                if (isMe) ...[const SizedBox(width: 4), statusIcon],
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              _formatTime(message.timestamp),
-              style: TextStyle(
-                color: isMe ? Colors.white70 : Colors.black54,
-                fontSize: 12,
-              ),
+            const SizedBox(height: 2),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _formatTime(message.timestamp),
+                  style: TextStyle(
+                    color: isMe ? Colors.white70 : Colors.black54,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -359,10 +448,12 @@ class _ChatScreenState extends State<ChatScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => CheckinDetailScreen(
-                checkinId: message.checkinId!,
-                checkin: null,
-              ),
+              builder: (context) => Scaffold(
+                appBar: AppBar(title: const Text('Detay Geçici Devre Dışı')),
+                body: const Center(
+                  child: Text('CheckinDetailScreen geçici olarak devre dışı'),
+                ),
+              ), // CheckinDetailScreen geçici devre dışı
             ),
           );
         },
@@ -375,15 +466,22 @@ class _ChatScreenState extends State<ChatScreen> {
   String _formatTime(DateTime timestamp) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final messageDate =
-        DateTime(timestamp.year, timestamp.month, timestamp.day);
+    final messageDate = DateTime(
+      timestamp.year,
+      timestamp.month,
+      timestamp.day,
+    );
 
     if (messageDate == today) {
       return '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
     } else if (messageDate == today.subtract(const Duration(days: 1))) {
       return 'Dün ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+    } else if (messageDate.isAfter(today.subtract(const Duration(days: 7)))) {
+      final weekdays = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+      final weekday = weekdays[timestamp.weekday - 1];
+      return '$weekday ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
     } else {
-      return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
+      return '${timestamp.day.toString().padLeft(2, '0')}.${timestamp.month.toString().padLeft(2, '0')}.${timestamp.year} ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
     }
   }
 
@@ -406,14 +504,19 @@ class _ChatScreenState extends State<ChatScreen> {
                       children: [
                         Text(
                           _otherUser!.displayName ?? 'İsimsiz Kullanıcı',
-                          style: const TextStyle(fontSize: 16),
+                          style: TextStyle(
+                            fontSize: 16,
+                            color:
+                                Theme.of(context).textTheme.titleLarge?.color ??
+                                    Colors.black,
+                          ),
                         ),
                         if (_otherUser!.university != null)
                           Text(
                             _otherUser!.university!,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Colors.white70,
+                              color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.grey,
                             ),
                           ),
                       ],
@@ -436,6 +539,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               _messages)
                             ..sort(
                                 (a, b) => a.timestamp.compareTo(b.timestamp));
+
                           return ListView.builder(
                             controller: _scrollController,
                             reverse: false,
@@ -459,30 +563,57 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           Container(
             padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                top: BorderSide(color: Colors.grey.shade300, width: 0.5),
+              ),
+            ),
             child: Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: const InputDecoration(
-                      hintText: 'Mesaj yazın...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(20)),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    maxLines: null,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendMessage(),
+                    child: TextField(
+                      controller: _messageController,
+                      decoration: const InputDecoration(
+                        hintText: 'Mesaj yazın...',
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                      maxLines: null,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendMessage(),
+                      onChanged: (_) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (_scrollController.hasClients) {
+                            _scrollController.animateTo(
+                              _scrollController.position.maxScrollExtent,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOut,
+                            );
+                          }
+                        });
+                      },
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.send),
-                  onPressed: _sendMessage,
+                Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF0084FF),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.send, color: Colors.white),
+                    onPressed: _sendMessage,
+                  ),
                 ),
               ],
             ),

@@ -42,15 +42,12 @@ class CheckinModel {
       print('Doküman ID: ${doc.id}');
       print('Ham veri: $data');
 
-      // Location verisini güvenli şekilde işle
       Map<String, dynamic> locationData = {};
       try {
         if (data['location'] != null) {
           if (data['location'] is Map<String, dynamic>) {
             locationData = Map<String, dynamic>.from(data['location']);
-            // GeoPoint kontrolü
             if (locationData['geopoint'] is GeoPoint) {
-              // Zaten GeoPoint, bir şey yapmaya gerek yok
             } else if (locationData['geopoint'] is Map) {
               var geoMap = locationData['geopoint'] as Map;
               locationData['geopoint'] = GeoPoint(
@@ -87,7 +84,6 @@ class CheckinModel {
         };
       }
 
-      // createdAt kontrolü
       DateTime createdAtDate;
       try {
         if (data['createdAt'] is Timestamp) {
@@ -155,7 +151,6 @@ class CheckinModel {
       print('CheckinModel.fromFirestore hatası: $e');
       print('Hatalı doküman ID: ${doc.id}');
       print('Ham veri: ${doc.data()}');
-      // Hata durumunda varsayılan değerlerle döndür
       return CheckinModel(
         id: doc.id,
         userId: '',

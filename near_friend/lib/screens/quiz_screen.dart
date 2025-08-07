@@ -99,9 +99,7 @@ class _QuizScreenState extends State<QuizScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        // Kullanıcı kaydını oluştur (eğer yoksa)
         await _authService.createUserRecord(user);
-        // Quiz'i geçti olarak işaretle
         await _authService.markQuizAsPassed(user.uid);
       }
 
@@ -113,7 +111,6 @@ class _QuizScreenState extends State<QuizScreen> {
       }
     } catch (e) {
       print('Quiz geçildi işaretlenirken hata: $e');
-      // Hata olsa bile profil ekranına yönlendir
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -262,7 +259,6 @@ class _QuizScreenState extends State<QuizScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // iOS Style Header
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -316,7 +312,6 @@ class _QuizScreenState extends State<QuizScreen> {
               ),
             ),
 
-            // Progress Bar
             Container(
               margin: const EdgeInsets.all(20),
               child: LinearProgressIndicator(
@@ -330,13 +325,11 @@ class _QuizScreenState extends State<QuizScreen> {
               ),
             ),
 
-            // Content
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    // Question
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
@@ -376,7 +369,6 @@ class _QuizScreenState extends State<QuizScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Options
                     Expanded(
                       child: ListView.builder(
                         itemCount: question.options.length,

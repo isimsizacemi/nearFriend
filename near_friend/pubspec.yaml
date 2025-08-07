@@ -39,16 +39,17 @@ dependencies:
   flutter_svg: ^2.0.7
   
   # Firebase
-  firebase_core: ^2.15.1
-  firebase_auth: ^4.9.0
-  cloud_firestore: ^4.9.1
-  firebase_storage: ^11.2.6
-  firebase_messaging: ^14.6.5
+  firebase_core: ^2.24.2
+  firebase_auth: ^4.15.3
+  cloud_firestore: ^4.13.6
+  firebase_storage: ^11.5.4
+  firebase_messaging: ^14.7.10
   
-  # Konum ve Harita
-  google_maps_flutter: ^2.4.0
-  geolocator: ^9.0.2
-  geocoding: ^2.1.0
+  # Konum ve Harita (geçici olarak sadece maps - location ekleri devre dışı)
+  google_maps_flutter: ^2.5.0
+  # geolocator: ^10.1.0  # v1 embedding sorunu - geçici devre dışı
+  # geocoding: ^2.1.1    # geolocator'a bağımlı - geçici devre dışı
+  location: ^5.0.3       # alternatif location plugin
   
   # State Management
   provider: ^6.0.5
@@ -56,7 +57,7 @@ dependencies:
   # UI Bileşenleri
   cached_network_image: ^3.2.3
   image_picker: ^0.8.7+5
-  permission_handler: ^10.4.3
+  # permission_handler: ^10.4.3  # geçici devre dışı - v1 embedding sorunu
   flutter_platform_widgets: ^3.2.0
   
   # HTTP ve API
@@ -72,10 +73,10 @@ dependencies:
   # Chat ve Mesajlaşma
   flutter_chat_ui: ^1.6.5
   
-  # Bildirimler
-  flutter_local_notifications: ^15.1.0+1
+  # Bildirimler (geçici olarak devre dışı - Android SDK 35 uyumsuzluğu)
+  # flutter_local_notifications: ^17.2.2
   google_sign_in: ^6.1.5
-  geoflutterfire2: ^2.3.15
+  # geoflutterfire2: ^2.3.15  # geolocator'a bağımlı - geçici devre dışı
   swipe_cards: ^2.0.0
 
 dev_dependencies:
@@ -103,28 +104,8 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/
-    - assets/icons/
+    - assets/images/avatars/
     - assets/quiz_questions.json
-    - assets/images/avatars/female1.png
-    - assets/images/avatars/female2.png
-    - assets/images/avatars/female3.png
-    - assets/images/avatars/female4.png
-    - assets/images/avatars/female5.png
-    - assets/images/avatars/female6.png
-    - assets/images/avatars/female7.png
-    - assets/images/avatars/female8.png
-    - assets/images/avatars/female9.png
-    - assets/images/avatars/female10.png
-    - assets/images/avatars/male1.png
-    - assets/images/avatars/male2.png
-    - assets/images/avatars/male3.png
-    - assets/images/avatars/male4.png
-    - assets/images/avatars/male5.png
-    - assets/images/avatars/male6.png
-    - assets/images/avatars/male7.png
-    - assets/images/avatars/male8.png
-    - assets/images/avatars/male9.png
-    - assets/images/avatars/male10.png
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 

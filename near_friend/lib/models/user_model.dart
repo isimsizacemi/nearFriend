@@ -55,9 +55,14 @@ class UserModel {
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
 
+    String? displayName = data['displayName'];
+    if (displayName == null || displayName.isEmpty) {
+      displayName = 'Kullanıcı_${doc.id.substring(0, 6)}';
+    }
+
     return UserModel(
       id: doc.id,
-      displayName: data['displayName'],
+      displayName: displayName,
       email: data['email'],
       phoneNumber: data['phoneNumber'],
       photoURL: data['photoURL'],
@@ -77,6 +82,71 @@ class UserModel {
       matchedUsers: List<String>.from(data['matchedUsers'] ?? []),
       pendingMatches: List<String>.from(data['pendingMatches'] ?? []),
       receivedMatches: List<String>.from(data['receivedMatches'] ?? []),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'displayName': displayName,
+      'email': email,
+      'phoneNumber': phoneNumber,
+      'photoURL': photoURL,
+      'bio': bio,
+      'university': university,
+      'age': age,
+      'gender': gender,
+      'hasCreatedProfile': hasCreatedProfile,
+      'isActive': isActive,
+      'interests': interests,
+      'createdAt': createdAt?.toIso8601String(),
+      'lastActiveAt': lastActiveAt?.toIso8601String(),
+      'isOnline': isOnline,
+      'currentLocation': currentLocation != null
+          ? {
+              'latitude': currentLocation!.latitude,
+              'longitude': currentLocation!.longitude,
+            }
+          : null,
+      'location': location,
+      'blockedUsers': blockedUsers,
+      'matchedUsers': matchedUsers,
+      'pendingMatches': pendingMatches,
+      'receivedMatches': receivedMatches,
+    };
+  }
+
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    return UserModel(
+      id: json['id'],
+      displayName: json['displayName'],
+      email: json['email'],
+      phoneNumber: json['phoneNumber'],
+      photoURL: json['photoURL'],
+      bio: json['bio'],
+      university: json['university'],
+      age: json['age'],
+      gender: json['gender'],
+      hasCreatedProfile: json['hasCreatedProfile'] ?? false,
+      isActive: json['isActive'] ?? true,
+      interests: List<String>.from(json['interests'] ?? []),
+      createdAt:
+          json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
+      lastActiveAt: json['lastActiveAt'] != null
+          ? DateTime.parse(json['lastActiveAt'])
+          : null,
+      isOnline: json['isOnline'] ?? false,
+      currentLocation: json['currentLocation'] != null
+          ? GeoPoint(
+              json['currentLocation']['latitude'],
+              json['currentLocation']['longitude'],
+            )
+          : null,
+      location: json['location'],
+      blockedUsers: List<String>.from(json['blockedUsers'] ?? []),
+      matchedUsers: List<String>.from(json['matchedUsers'] ?? []),
+      pendingMatches: List<String>.from(json['pendingMatches'] ?? []),
+      receivedMatches: List<String>.from(json['receivedMatches'] ?? []),
     );
   }
 
@@ -156,7 +226,7 @@ class UserModel {
 
   String? get displayPhotoAssetOrUrl {
     if (photoURL == null || photoURL!.isEmpty) {
-      return 'assets/images/default_avatar.png';
+      return 'assets/images/avatars/male1.png';
     }
     if (photoURL!.startsWith('assets/')) {
       return photoURL;
@@ -166,7 +236,7 @@ class UserModel {
 
   ImageProvider getProfileImageProvider() {
     if (photoURL == null || photoURL!.isEmpty) {
-      return const AssetImage('assets/images/default_avatar.png');
+      return const AssetImage('assets/images/avatars/male1.png');
     }
     if (photoURL!.startsWith('assets/')) {
       return AssetImage(photoURL!);
@@ -174,6 +244,6 @@ class UserModel {
     if (photoURL!.startsWith('http')) {
       return NetworkImage(photoURL!);
     }
-    return const AssetImage('assets/images/default_avatar.png');
+    return const AssetImage('assets/images/avatars/male1.png');
   }
 }

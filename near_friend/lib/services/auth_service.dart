@@ -5,10 +5,8 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Kullanıcı giriş durumunu dinle
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // Kullanıcının quiz'i geçip geçmediğini kontrol et
   Future<bool> hasUserPassedQuiz(String userId) async {
     try {
       final doc = await _firestore.collection('users').doc(userId).get();
@@ -22,7 +20,6 @@ class AuthService {
     }
   }
 
-  // Kullanıcının profilini oluşturup oluşturmadığını kontrol et
   Future<bool> hasUserCreatedProfile(String userId) async {
     try {
       final doc = await _firestore.collection('users').doc(userId).get();
@@ -36,7 +33,6 @@ class AuthService {
     }
   }
 
-  // Quiz'i geçti olarak işaretle
   Future<void> markQuizAsPassed(String userId) async {
     try {
       await _firestore.collection('users').doc(userId).set({
@@ -48,14 +44,12 @@ class AuthService {
     }
   }
 
-  // Yeni kullanıcı kaydı oluştur
   Future<void> createUserRecord(User firebaseUser) async {
     try {
       print('Firestore\'da kullanıcı kaydı oluşturuluyor...');
       print('User ID: ${firebaseUser.uid}');
       print('User Email: ${firebaseUser.email}');
 
-      // Önce kullanıcının zaten var olup olmadığını kontrol et
       final existingDoc =
           await _firestore.collection('users').doc(firebaseUser.uid).get();
 
@@ -107,12 +101,10 @@ class AuthService {
     } catch (e) {
       print('Kullanıcı kaydı oluşturulurken hata: $e');
       print('Hata detayı: ${e.toString()}');
-      // Hatayı yukarı fırlatma, sadece log'la
       print('Kullanıcı kaydı oluşturulamadı, devam ediliyor...');
     }
   }
 
-  // Kullanıcı verilerini güncelle
   Future<void> updateUserProfile(
       String userId, Map<String, dynamic> data) async {
     try {
@@ -133,7 +125,6 @@ class AuthService {
     }
   }
 
-  // Çıkış yap
   Future<void> signOut() async {
     await _auth.signOut();
   }

@@ -14,6 +14,7 @@ class MessageModel {
   final Map<String, dynamic>? checkinData;
   final bool delivered;
   final bool read;
+  final DateTime? readAt; // Okundu zamanı
 
   MessageModel({
     required this.id,
@@ -29,6 +30,7 @@ class MessageModel {
     this.checkinData,
     this.delivered = false,
     this.read = false,
+    this.readAt,
   });
 
   factory MessageModel.fromFirestore(DocumentSnapshot doc) {
@@ -47,6 +49,7 @@ class MessageModel {
       checkinData: data['checkinData'],
       delivered: data['delivered'] ?? false,
       read: data['read'] ?? false,
+      readAt: data['readAt'] != null ? (data['readAt'] as Timestamp).toDate() : null,
     );
   }
 
@@ -64,6 +67,7 @@ class MessageModel {
       'checkinData': checkinData,
       'delivered': delivered,
       'read': read,
+      'readAt': readAt != null ? Timestamp.fromDate(readAt!) : null,
     };
   }
 

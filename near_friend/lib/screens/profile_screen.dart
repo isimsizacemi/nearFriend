@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../models/checkin_model.dart';
 import '../utils/app_theme.dart';
 import 'profile_edit_screen.dart';
+import 'location_test_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/user_model.dart';
@@ -34,13 +35,11 @@ class ProfileScreenState extends State<ProfileScreen>
 
   final _authService = AuthService();
 
-  // Kullanıcı verileri
   Map<String, dynamic>? _userData;
   List<CheckinModel> _userPosts = [];
   bool _isLoading = false;
   bool _isLoadingPosts = false;
 
-  // Cache kullanmıyoruz, direkt Firestore'dan veri çekiyoruz
 
   @override
   void initState() {
@@ -49,7 +48,6 @@ class ProfileScreenState extends State<ProfileScreen>
     _loadUserPosts();
   }
 
-  // Cache fonksiyonları kaldırıldı - direkt Firestore'dan veri çekiyoruz
 
   Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -76,7 +74,6 @@ class ProfileScreenState extends State<ProfileScreen>
     if (user == null) return;
     setState(() => _isLoadingPosts = true);
     try {
-      // Tüm gönderileri getir, sadece son 7 günlük değil
       final query = FirebaseFirestore.instance
           .collection('checkins')
           .where('userId', isEqualTo: user.uid)
@@ -100,7 +97,6 @@ class ProfileScreenState extends State<ProfileScreen>
       }
       print('==========================');
 
-      // Firestore'dan gelen ham veriyi kontrol et
       print('=== HAM VERİ DEBUG ===');
       for (var doc in snapshot.docs) {
         print('Doküman ID: ${doc.id}');
@@ -114,7 +110,6 @@ class ProfileScreenState extends State<ProfileScreen>
       });
     } catch (e) {
       print('Kullanıcı gönderileri yüklenirken hata: $e');
-      // Hata durumunda daha basit bir sorgu dene
       try {
         final simpleQuery = FirebaseFirestore.instance
             .collection('checkins')
@@ -176,11 +171,9 @@ class ProfileScreenState extends State<ProfileScreen>
   void _logout() async {
     try {
       await FirebaseAuth.instance.signOut();
-      // Tüm cache'i temizle
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
       if (mounted) {
-        // Önce snackbar göster
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Başarıyla çıkış yapıldı'),
@@ -191,10 +184,8 @@ class ProfileScreenState extends State<ProfileScreen>
           ),
         );
 
-        // Kısa bir bekleme sonrası login ekranına yönlendir
         await Future.delayed(const Duration(milliseconds: 500));
 
-        // Tüm stacki temizle ve login ekranına git
         if (mounted) {
           Navigator.of(context)
               .pushNamedAndRemoveUntil('/login', (route) => false);
@@ -243,6 +234,17 @@ class ProfileScreenState extends State<ProfileScreen>
       }
     } catch (e) {
       print('Profil düzenleme ekranına giderken hata: $e');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Profil düzenleme açılırken hata oluştu: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
     }
   }
 
@@ -252,7 +254,6 @@ class ProfileScreenState extends State<ProfileScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (user == null) {
-      // Kullanıcı yoksa otomatik olarak login ekranına yönlendir
       Future.microtask(() {
         Navigator.of(context)
             .pushNamedAndRemoveUntil('/login', (route) => false);
@@ -279,7 +280,6 @@ class ProfileScreenState extends State<ProfileScreen>
       body: SafeArea(
         child: Column(
           children: [
-            // iOS Style Header - Daha kompakt ve modern
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
@@ -402,6 +402,22 @@ class ProfileScreenState extends State<ProfileScreen>
                   CupertinoButton(
                     padding: const EdgeInsets.all(8),
                     onPressed: () {
+                      Navigator.push(
+                        context,
+                        CupertinoPageRoute(
+                          builder: (context) => const LocationTestScreen(),
+                        ),
+                      );
+                    },
+                    child: Icon(
+                      CupertinoIcons.location,
+                      color: AppTheme.iosBlue,
+                      size: 20,
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: const EdgeInsets.all(8),
+                    onPressed: () {
                       _showLogoutDialog();
                     },
                     child: Icon(
@@ -414,15 +430,12 @@ class ProfileScreenState extends State<ProfileScreen>
               ),
             ),
 
-            // Content
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    // Profil Bilgileri
                     _buildProfileContent(),
 
-                    // Gönderiler
                     _isLoadingPosts
                         ? ListView.builder(
                             shrinkWrap: true,
@@ -557,7 +570,6 @@ class ProfileScreenState extends State<ProfileScreen>
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Profil Bilgileri - Daha kompakt
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             padding: const EdgeInsets.all(16),
@@ -582,7 +594,6 @@ class ProfileScreenState extends State<ProfileScreen>
             ),
             child: Column(
               children: [
-                // Profil Fotoğrafı ve Bilgiler
                 Row(
                   children: [
                     Container(
@@ -602,7 +613,7 @@ class ProfileScreenState extends State<ProfileScreen>
                                     .startsWith('assets/')
                             ? Image.asset(_userData!['photoURL'],
                                 fit: BoxFit.cover)
-                            : Image.asset('assets/images/default_avatar.png',
+                            : Image.asset('assets/images/avatars/male1.png',
                                 fit: BoxFit.cover),
                       ),
                     ),
@@ -679,7 +690,6 @@ class ProfileScreenState extends State<ProfileScreen>
                 ),
                 const SizedBox(height: 16),
 
-                // İstatistikler
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -695,7 +705,6 @@ class ProfileScreenState extends State<ProfileScreen>
             ),
           ),
 
-          // Gönderiler - Daha kompakt
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(

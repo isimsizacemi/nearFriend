@@ -1,49 +1,86 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:geolocator/geolocator.dart';
 import '../models/user_model.dart';
 import '../models/message_model.dart';
-import 'package:geoflutterfire2/geoflutterfire2.dart';
+import 'time_service.dart';
 
 class MatchService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Yakındaki kullanıcıları getir
-  Future<List<UserModel>> getNearbyUsers() async {
+  Future<List<UserModel>> getNearbyUsers(
+      {int limit = 10, DocumentSnapshot? lastDocument}) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return [];
 
-      final yesterday = DateTime.now().subtract(const Duration(days: 1));
+      print('🔍 MatchService: Kullanıcılar yükleniyor... (Limit: $limit)');
 
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('isActive', isEqualTo: true)
-          .where('hasCreatedProfile', isEqualTo: true)
-          .get();
+      Query query = FirebaseFirestore.instance.collection('users');
+
+      if (lastDocument != null) {
+        query = query.startAfterDocument(lastDocument);
+      }
+
+      query = query.limit(limit);
+
+      final querySnapshot = await query.get();
+
+      print('📊 MatchService: ${querySnapshot.docs.length} kullanıcı alındı');
 
       final users = querySnapshot.docs
           .map((doc) => UserModel.fromFirestore(doc))
           .where((user) =>
               user.id != FirebaseAuth.instance.currentUser?.uid &&
-              user.lastActiveAt?.isAfter(yesterday) == true)
+              user.displayName != null &&
+              user.displayName!.isNotEmpty &&
+              user.isActive == true &&
+              user.hasCreatedProfile == true)
           .toList();
+
+      print('✅ MatchService: ${users.length} kullanıcı filtrelendi');
 
       return users;
     } catch (e) {
-      print('Yakındaki kullanıcılar yüklenirken hata: $e');
+      print('❌ Yakındaki kullanıcılar yüklenirken hata: $e');
       return [];
     }
   }
 
-  // Sağa kaydır (beğen)
+  Future<List<UserModel>> getAllUsers() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return [];
+
+      print('🔍 MatchService: Tüm kullanıcılar yükleniyor...');
+
+      final querySnapshot =
+          await FirebaseFirestore.instance.collection('users').get();
+
+      print('📊 MatchService: ${querySnapshot.docs.length} kullanıcı bulundu');
+
+      final users = querySnapshot.docs
+          .map((doc) => UserModel.fromFirestore(doc))
+          .where((user) =>
+              user.id != FirebaseAuth.instance.currentUser?.uid &&
+              user.displayName != null &&
+              user.displayName!.isNotEmpty)
+          .toList();
+
+      print('✅ MatchService: ${users.length} kullanıcı filtrelendi');
+
+      return users;
+    } catch (e) {
+      print('❌ Tüm kullanıcılar yüklenirken hata: $e');
+      return [];
+    }
+  }
+
   Future<void> likeUser(String likedUserId) async {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return;
 
-      // Önce DM isteği kontrolü yap
       final existingRequest = await _firestore
           .collection('dm_requests')
           .where('fromUserId', isEqualTo: currentUser.uid)
@@ -56,7 +93,6 @@ class MatchService {
         return;
       }
 
-      // Karşılıklı beğeni kontrolü
       final otherUserDoc =
           await _firestore.collection('users').doc(likedUserId).get();
       if (otherUserDoc.exists) {
@@ -64,30 +100,29 @@ class MatchService {
         final otherUserPending =
             List<String>.from(otherUserData['pendingMatches'] ?? []);
 
-        // Eğer karşı taraf da beni beğenmişse direkt eşleşme oluştur
         if (otherUserPending.contains(currentUser.uid)) {
           await _createMatch(currentUser.uid, likedUserId);
           return;
         }
       }
 
-      // DM isteği gönder
+      final realTimestamp = await TimeService.getCurrentTime();
+
       await _firestore.collection('dm_requests').add({
         'fromUserId': currentUser.uid,
         'toUserId': likedUserId,
         'checkinId': '', // Like için boş
         'message': 'Seni beğendim 😊',
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt':
+            Timestamp.fromDate(realTimestamp), // İnternetten alınan saat
         'status': 'pending',
         'type': 'like', // Like tipi DM isteği
       });
 
-      // Mevcut kullanıcının pending listesine ekle
       await _firestore.collection('users').doc(currentUser.uid).update({
         'pendingMatches': FieldValue.arrayUnion([likedUserId]),
       });
 
-      // Beğenilen kullanıcının received listesine ekle
       await _firestore.collection('users').doc(likedUserId).update({
         'receivedMatches': FieldValue.arrayUnion([currentUser.uid]),
       });
@@ -98,13 +133,11 @@ class MatchService {
     }
   }
 
-  // Sola kaydır (reddet)
   Future<void> dislikeUser(String dislikedUserId) async {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return;
 
-      // Reddedilen kullanıcıyı blocked listesine ekle (opsiyonel)
       await _firestore.collection('users').doc(currentUser.uid).update({
         'blockedUsers': FieldValue.arrayUnion([dislikedUserId]),
       });
@@ -113,10 +146,8 @@ class MatchService {
     }
   }
 
-  // Eşleşme oluştur
   Future<void> _createMatch(String user1Id, String user2Id) async {
     try {
-      // Her iki kullanıcının listelerini güncelle
       await _firestore.collection('users').doc(user1Id).update({
         'pendingMatches': FieldValue.arrayRemove([user2Id]),
         'matchedUsers': FieldValue.arrayUnion([user2Id]),
@@ -127,7 +158,6 @@ class MatchService {
         'matchedUsers': FieldValue.arrayUnion([user1Id]),
       });
 
-      // DM isteklerini kabul et
       await _firestore
           .collection('dm_requests')
           .where('fromUserId', whereIn: [user1Id, user2Id])
@@ -140,7 +170,6 @@ class MatchService {
             }
           });
 
-      // Chat oluştur
       await _createChat(user1Id, user2Id);
 
       print('Eşleşme oluşturuldu: $user1Id ve $user2Id');
@@ -149,17 +178,20 @@ class MatchService {
     }
   }
 
-  // Chat oluştur
   Future<void> _createChat(String user1Id, String user2Id) async {
     try {
       final chatId = [user1Id, user2Id]..sort();
       final chatIdString = chatId.join('_');
 
+      final realTimestamp = await TimeService.getCurrentTime();
+
       await _firestore.collection('chats').doc(chatIdString).set({
         'user1Id': user1Id,
         'user2Id': user2Id,
-        'createdAt': FieldValue.serverTimestamp(),
-        'lastMessageAt': FieldValue.serverTimestamp(),
+        'createdAt':
+            Timestamp.fromDate(realTimestamp), // İnternetten alınan saat
+        'lastMessageAt':
+            Timestamp.fromDate(realTimestamp), // İnternetten alınan saat
         'lastMessage': '',
         'isActive': true,
         'participants': [user1Id, user2Id],
@@ -169,7 +201,6 @@ class MatchService {
     }
   }
 
-  // Gelen eşleşme isteklerini getir
   Future<List<UserModel>> getReceivedMatches() async {
     try {
       final currentUser = _auth.currentUser;
@@ -200,13 +231,11 @@ class MatchService {
     }
   }
 
-  // Eşleşme isteğini kabul et
   Future<void> acceptMatch(String matchedUserId) async {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return;
 
-      // DM isteklerini kabul et
       await _firestore
           .collection('dm_requests')
           .where('fromUserId', isEqualTo: matchedUserId)
@@ -225,13 +254,11 @@ class MatchService {
     }
   }
 
-  // Eşleşme isteğini reddet
   Future<void> rejectMatch(String rejectedUserId) async {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return;
 
-      // DM isteklerini reddet
       await _firestore
           .collection('dm_requests')
           .where('fromUserId', isEqualTo: rejectedUserId)
@@ -244,12 +271,10 @@ class MatchService {
         }
       });
 
-      // Reddedilen kullanıcıyı received listesinden çıkar
       await _firestore.collection('users').doc(currentUser.uid).update({
         'receivedMatches': FieldValue.arrayRemove([rejectedUserId]),
       });
 
-      // Reddeden kullanıcıyı pending listesinden çıkar
       await _firestore.collection('users').doc(rejectedUserId).update({
         'pendingMatches': FieldValue.arrayRemove([currentUser.uid]),
       });
@@ -258,7 +283,6 @@ class MatchService {
     }
   }
 
-  // Eşleştiğin kullanıcıları getir
   Future<List<UserModel>> getMatchedUsers() async {
     try {
       final currentUser = _auth.currentUser;
@@ -288,13 +312,11 @@ class MatchService {
     }
   }
 
-  // Mesaj gönder
   Future<void> sendMessage(String receiverId, String content) async {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return;
 
-      // Eşleşme kontrolü
       final currentUserDoc =
           await _firestore.collection('users').doc(currentUser.uid).get();
       if (!currentUserDoc.exists) return;
@@ -308,23 +330,26 @@ class MatchService {
         return;
       }
 
+      final realTimestamp = await TimeService.getCurrentTime();
+
       final messageData = {
         'senderId': currentUser.uid,
         'receiverId': receiverId,
         'content': content,
-        'timestamp': FieldValue.serverTimestamp(),
+        'timestamp':
+            Timestamp.fromDate(realTimestamp), // İnternetten alınan saat
         'isRead': false,
         'messageType': 'text',
       };
 
       await _firestore.collection('messages').add(messageData);
 
-      // Chat'i güncelle
       final chatId = [currentUser.uid, receiverId]..sort();
       final chatIdString = chatId.join('_');
 
       await _firestore.collection('chats').doc(chatIdString).update({
-        'lastMessageAt': FieldValue.serverTimestamp(),
+        'lastMessageAt':
+            Timestamp.fromDate(realTimestamp), // İnternetten alınan saat
         'lastMessage': content,
       });
     } catch (e) {
@@ -332,7 +357,6 @@ class MatchService {
     }
   }
 
-  // Chat mesajlarını getir
   Stream<List<MessageModel>> getChatMessages(String otherUserId) {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return Stream.value([]);
@@ -352,7 +376,6 @@ class MatchService {
             .toList());
   }
 
-  // Chat listesini getir
   Stream<List<ChatModel>> getChats() {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return Stream.value([]);

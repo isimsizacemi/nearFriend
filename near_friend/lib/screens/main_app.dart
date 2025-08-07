@@ -29,7 +29,6 @@ class _MainAppState extends State<MainApp> {
     setState(() {
       _selectedIndex = index;
       if (index == 4) {
-        // Profil sekmesine geçildiğinde yenile
         _profileScreenKey.currentState?.refreshProfile();
       }
     });
