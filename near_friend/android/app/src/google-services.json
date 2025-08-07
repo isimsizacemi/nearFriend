@@ -1,29 +1,39 @@
 {
   "project_info": {
-    "project_number": "238065650809",
-    "project_id": "neirfriends",
-    "storage_bucket": "neirfriends.firebasestorage.app"
+    "project_number": "your_project_number_here",
+    "project_id": "your_project_id_here",
+    "storage_bucket": "your_project_id_here.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:238065650809:android:2288038c05de5ead5c18a8",
+        "mobilesdk_app_id": "your_app_id_here",
         "android_client_info": {
-          "package_name": "com.isimsizacemi.nearfriends"
+          "package_name": "com.example.nearfriend"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "your_oauth_client_id_here",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyBkuRsUfgdZ5gq7uJ_IT7gUfZXBsZzLJuM"
+          "current_key": "your_firebase_api_key_here"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "your_web_client_id_here",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
   ],
   "configuration_version": "1"
-}
+} 
