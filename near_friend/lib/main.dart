@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'firebase_options.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/feed_screen.dart';
@@ -19,9 +18,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    await Firebase.initializeApp();
     print('Firebase başarıyla başlatıldı');
   } catch (e) {
     print('Firebase başlatma hatası: $e');
