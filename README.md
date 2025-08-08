@@ -11,7 +11,7 @@
   <h3>📍 Yakındaki Arkadaşlarınızı Keşfedin</h3>
   <p>Üniversite öğrencileri için konum tabanlı sosyal etkileşim uygulaması</p>
   
-  [![Download APK](https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android)](app-release.apk)
+  [![Download APK](https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android)](nearFriend)
 </div>
 
 ## 📱 Uygulama Görünümü
@@ -181,7 +181,7 @@ lib/
 
 Uygulamayı hemen denemek için APK dosyasını indirin:
 
-[![Download APK](https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android)](app-release.apk)
+[![Download APK](https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android)](nearFriend)
 
 ### 📋 Kurulum Adımları:
 
