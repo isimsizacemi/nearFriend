@@ -14,6 +14,53 @@
   [![Download APK](https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android)](near_friend/build/app/outputs/flutter-apk/app-release.apk)
 </div>
 
+## 📱 Uygulama Görünümü
+
+<div align="center">
+  <img src="screenShot/app-logo.jpg" alt="nearFriend Logo" width="200">
+  
+  <h4>🎯 Ana Özellikler</h4>
+  
+  <table>
+    <tr>
+      <td align="center">
+        <img src="screenShot/anasayfa.jpg" alt="Ana Sayfa" width="200">
+        <br><strong>Ana Sayfa</strong>
+      </td>
+      <td align="center">
+        <img src="screenShot/chechkIn.jpg" alt="Check-in" width="200">
+        <br><strong>Check-in Paylaşımı</strong>
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        <img src="screenShot/profilim.jpg" alt="Profil" width="200">
+        <br><strong>Profil Sayfası</strong>
+      </td>
+      <td align="center">
+        <img src="screenShot/profilim-düzenleme.jpg" alt="Profil Düzenleme" width="200">
+        <br><strong>Profil Düzenleme</strong>
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        <img src="screenShot/gelen-mesajlar-istek.jpg" alt="Mesajlar" width="200">
+        <br><strong>Mesajlar & İstekler</strong>
+      </td>
+      <td align="center">
+        <img src="screenShot/eslesme.jpg" alt="Eşleşme" width="200">
+        <br><strong>Eşleşme Sistemi</strong>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" colspan="2">
+        <img src="screenShot/konum-test-servisi.jpg" alt="Konum Test" width="200">
+        <br><strong>Konum Test Servisi</strong>
+      </td>
+    </tr>
+  </table>
+</div>
+
 ## ✨ Özellikler
 
 ### 📍 Konum Tabanlı
